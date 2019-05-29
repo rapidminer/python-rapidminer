@@ -95,7 +95,7 @@ where `df` is the `DataFrame` object you want to write to the repository, and `"
 To run a process execute the following line:
 
 ```python
-[df] = connector.run_process("//Samples/processes/02_Preprocessing/01_Normalization")
+df = connector.run_process("//Samples/processes/02_Preprocessing/01_Normalization")
 ```
 
 You will get the results as `pandas` `DataFrames`. You can also define inputs, and many more. For more examples, see the [examples notebook](examples/studio_examples.ipynb)
