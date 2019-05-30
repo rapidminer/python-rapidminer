@@ -273,6 +273,8 @@ them access to the process created by this operation."""
             jobid = r.json()["id"]
             self.log("Submitted process with job id: " + str(jobid))
             self.__wait_for_job(jobid)
+            if len(output_resources) == 1:
+                output_resources = output_resources[0]
             return self.read_resource(output_resources)
         finally:
             if ignore_cleanup_errors:
@@ -334,7 +336,7 @@ them access to the process created by this operation."""
             # if there is no process path specified, try to get it from user input a couple of times
             tries = self.__PROCESS_PATH_TRIES if self.__processpath is None else 1
             for _ in range(tries):
-                processpath_to_test = input("Please enter repository path for installing the process - it will be accessible by all users"
+                processpath_to_test = input("Please enter full repository path for installing the process - it will be accessible by all users"
                                         + " [" + default_webservice_path + "]: ") if self.__processpath is None else self.__processpath
                 if processpath_to_test.strip() == "":
                     processpath_to_test = default_webservice_path
@@ -422,12 +424,16 @@ them access to the process created by this operation."""
                                    accepted_status_codes=[201], headers_fn=self.__get_headers_with_content_type)
 
     def __make_public(self, path):
-        res = self.__get_soap_client().setAccessRights(path, {
-            'execute': 'GRANT',
-            'group': 'users',
-            'read': 'GRANT',
-            'write': 'IGNORE'
-        })
+        client = self.__get_soap_client()
+        try:
+            res = client.service.setAccessRights(path, {
+                'execute': 'GRANT',
+                'group': 'users',
+                'read': 'GRANT',
+                'write': 'IGNORE'
+            })
+        finally:
+            self.__destroy_soap_client(client)
         if hasattr(res, "status") and res["status"] != 0:
             self.log("Could not give permission on the backend process to 'users' group, status : " + str(res["status"])
                 + ((", error message: " + res["errorMessage"]) if hasattr(res, "errorMessage") else "")
@@ -441,17 +447,24 @@ them access to the process created by this operation."""
                                        + "Failed to install webservice with the name '" + service_name + "', status: " + str(s))
 
     def __is_folder(self, path):
-        res = self.__get_soap_client().getFolderContents(path)
-        if hasattr(res, "status") and res["status"] == 0:
-            return True
-        else:
-            return False
+        client = self.__get_soap_client()
+        try:
+            res = client.service.getFolderContents(path)
+            if hasattr(res, "status") and res["status"] == 0:
+                return True
+            else:
+                return False
+        finally:
+            self.__destroy_soap_client(client)
 
     def __get_soap_client(self):
         session = requests.Session()
         session.auth = requests.auth.HTTPBasicAuth(self.username, self.__password)
         client = zeep.Client(self.server_url + "/api/soap/RepositoryService?wsdl", transport=zeep.transports.Transport(session=session))
-        return client.service
+        return client
+
+    def __destroy_soap_client(self, client):
+        client.transport.session.close()
 
     def __get_headers(self):
         return self.auth_header
