@@ -38,6 +38,8 @@ from .resources import RepositoryLocation
 from .utilities import GeneralException
 from .utilities import __open__
 
+from .. import __version__
+
 class StudioException(Exception):
     def __init__(self, msg=""):
         super(Exception, self).__init__(msg)
@@ -48,6 +50,7 @@ class Studio(Connector):
     """
     __TMP_OUTPUT_DIR_PREFIX= "rapidminer-scripting-output-"
     __TMP_INPUT_DIR_PREFIX="rapidminer-scripting-inputs-"
+    __VERSION_MSG="RAPIDMINER_VERSION="
     ___EXIT_CODE_MSG="EXIT_CODE="
     __RAPIDMINER_ERROR_MSG="RAPIDMINER_ERROR_MSG="
     __RAPIDMINER_ERROR_MSG_FIRST_LINE="RAPIDMINER_ERROR_MSG_FIRST_LINE="
@@ -76,6 +79,7 @@ class Studio(Connector):
         self.override_python_binary = override_python_binary
         self.__last_exception_msg__ = {} # ensures proper multithreading: this maps last exception message for every thread
         self.__last_exit_code__ = {} # ensures proper multithreading: this maps last exit code for every thread
+        self.__rapidminer_version = {}
         if not os.path.isdir(self.studio_home):
             raise StudioException("Specified or default RapidMiner Home does not exist: " + self.studio_home)
         scripts_dir = os.path.join(self.studio_home, self.__SCRIPTS_SUBDIR)
@@ -150,6 +154,7 @@ class Studio(Connector):
         Arguments:
         :param path: path to the RapidMiner process in a repository or an .rmp file. It can be a string, in that case it is interpreted as a repository location. It can also be a rapidminer.File or rapidminer.RepositoryLocation object representing a local file or a RapidMiner repository entry, respectively.
         :param inputs: inputs used by the RapidMiner process, an input can be a pandas DataFrame, a pickle-able python object or a file-like object.
+        :param macros: optional dict that sets the macros in the process context according to the key-value pairs, e.g. macros={"macro1": "value1", "macro2": "value2"}
         :param operator: the name of the RapidMiner operator of the process to execute. If None (default) the whole process is executed.
         :return: the results of the RapidMiner process. It can be None, or a single object, or a tuple. One result may be a pandas DataFrame, a pickle-able python object or a file-like object.
         """
@@ -216,6 +221,11 @@ class Studio(Connector):
             lglevel = logging.INFO
         return (msg, lglevel)
 
+    def __update_version(self, msg, threadid):
+        if msg.startswith(self.__VERSION_MSG):
+            msg = msg[len(self.__VERSION_MSG):]
+            self.__rapidminer_version[threadid] = msg
+
     def __update_error_and_exit_code_fields(self, msg, threadid):
         if msg.startswith(self.__RAPIDMINER_ERROR_MSG_FIRST_LINE):
             msg = msg[len(self.__RAPIDMINER_ERROR_MSG_FIRST_LINE):]
@@ -230,6 +240,7 @@ class Studio(Connector):
         for line in iter(process.stdout.readline, b''):
             try:
                 msg = line.decode(encoding=__STDOUT_ENCODING__, errors='ignore')
+                self.__update_version(msg, threadid)
                 self.__update_error_and_exit_code_fields(msg, threadid)
                 if self.__rm_stdout__ is not None:
                     self.__rm_stdout__.write(msg)
@@ -300,6 +311,7 @@ class Studio(Connector):
         params = []
         params.append(os.path.join(self.studio_home, self.__SCRIPTS_SUBDIR, "rapidminer-batch" + self.__get_script_suffix()))
         self.__append_param(params, "rmx_python_scripting:com.rapidminer.extension.pythonscripting.launcher.ExtendedCmdLauncher", prefix="-C")
+        self.__append_param(params, __version__, prefix="-V")
         if (process is not None):
             if not isinstance(process, Resource):
                 process = RepositoryLocation(name=process)
@@ -333,18 +345,22 @@ class Studio(Connector):
             del self.__last_exit_code__[threadid]
         if threadid in self.__last_exception_msg__:
             del self.__last_exception_msg__[threadid]
+        if threadid in self.__rapidminer_version:
+            del self.__rapidminer_version[threadid]
         try:
             p = subprocess.Popen(params, **kwargs)
             try:
                 self.__start_printer_thread(p)
                 p.wait()
+                if not threadid in self.__rapidminer_version:
+                    self.log("You are using 9.3.0 or earlier version of Python Scripting Extension in RapidMiner Studio. Upgrade it in the 'Extensions / Marketplace' menu in Studio.", level=logging.WARNING, source="python")
                 if not threadid in self.__last_exit_code__ or self.__last_exit_code__[threadid] != 0:
                     if threadid in self.__last_exception_msg__:
                         raise StudioException("Error while executing studio: " + self.__last_exception_msg__[threadid])
                     elif threadid in self.__last_exit_code__:
-                        raise StudioException("Error while executing studio - unkown error. (error code: " + str(self.__last_exit_code__) + ")")
+                        raise StudioException("Error while executing studio - unknown error. (error code: " + str(self.__last_exit_code__) + ")")
                     else:
-                        raise StudioException("Error while executing studio - unkown error.")
+                        raise StudioException("Error while executing studio - unknown error.")
             finally:
                 p.stdout.close()
         finally:

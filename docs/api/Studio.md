@@ -52,6 +52,7 @@ Runs a RapidMiner process and returns the result(s).
 Arguments:
 - `path`: path to the RapidMiner process in a repository or an .rmp file. It can be a string, in that case it is interpreted as a repository location. It can also be a rapidminer.File or rapidminer.RepositoryLocation object representing a local file or a RapidMiner repository entry, respectively.
 - `inputs`: inputs used by the RapidMiner process, an input can be a pandas DataFrame, a pickle-able python object or a file-like object.
+- `macros`: optional dict that sets the macros in the process context according to the key-value pairs, e.g. macros={"macro1": "value1", "macro2": "value2"}
 - `operator`: the name of the RapidMiner operator of the process to execute. If None (default) the whole process is executed.
 
 Returns:

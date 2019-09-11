@@ -33,6 +33,8 @@ import logging
 import textwrap
 import zeep
 
+from .. import __version__
+
 class Server(Connector):
     """
     Class for using a local or remote RapidMiner Server instance directly. You can read from and write to the Server repository and you can execute processes using the scalable Job Agent architecture.
@@ -166,11 +168,13 @@ them access to the process created by this operation."""
             elif not isinstance(inp, str):
                 raise ServerException("Input path should be 'str' or 'rapidminer.RepositoryLocation object, not '" + str(type(inp)) + "'.")
             post_url = self.server_url + "/api/rest/process/" + self.webservice + "?"
-            r = self.__send_request(partial(requests.post, post_url, json={"command": "read_resource", "path": inp, "row_limit": self.row_limit, "attribute_limit": self.attribute_limit}),
+            r = self.__send_request(partial(requests.post, post_url, json={"command": "read_resource", "library_version": __version__, "path": inp, "row_limit": self.row_limit, "attribute_limit": self.attribute_limit}),
                                     lambda s: "Failed to read input \"" + inp + "\", status: " + str(s) 
                                     + (". The web service backend may have been deleted, please try to use a new Server class." if s == 404 else ""))
             response = extract_json(r)
-            if not isinstance(response, list) or len(response) != 2:
+            self.__check_extension_version(response, typeColumn="extension", valueColumn="content")
+            # in the 9.3.0 version, we expect a list with 2 elements; from 9.3.1 we expect 3 elements
+            if not isinstance(response, list) or len(response) not in [2,3]:
                 raise ServerException("Invalid response from server. The entry may not be a data set.")
             metadata = None
             csv_data = None
@@ -221,10 +225,11 @@ them access to the process created by this operation."""
                         {"extension": "csv", "content": csv_stream.getvalue()}]
             else:
                 raise ValueError("dataframe parameter must be one or more Pandas DataFrames")
-            r = self.__send_request(partial(requests.post, post_url, json={"command": "write_resource", "path": out, "data": data}),
+            r = self.__send_request(partial(requests.post, post_url, json={"command": "write_resource", "library_version": __version__, "path": out, "data": data}),
                                     lambda s: "Failed to save input no. " + str(idx+1) + ", status: " + str(s)
                                     + (". The web service backend may have been deleted, please try to use a new Server class." if s == 404 else ""))
-            extract_json(r)
+            response = extract_json(r)
+            self.__check_extension_version(response)
 
     def run_process(self, path, inputs=[], macros={}, queue="DEFAULT", ignore_cleanup_errors=True):
         """
@@ -233,7 +238,7 @@ them access to the process created by this operation."""
         Arguments:
         :param path: path to the RapidMiner process in the Server repository. It can be a string or a rapidminer.RepositoryLocation object.
         :param inputs: inputs used by the RapidMiner process, as a list of pandas DataFrame objects or a single pandas DataFrame.
-        :param macros: optional dict that sets the macros in the process context according to the key-value pairs.
+        :param macros: optional dict that sets the macros in the process context according to the key-value pairs, e.g. macros={"macro1": "value1", "macro2": "value2"}
         :param queue: the name of the queue to submit the process to. Default is DEFAULT.
         :param ignore_cleanup_errors: boolean. Determines if any error during temporary data cleanup should be ignored or not. Default value is True.
         :return: the results of the RapidMiner process. It can be None, or a single pandas DataFrame object, or a tuple of DataFrames.
@@ -326,7 +331,7 @@ them access to the process created by this operation."""
     def __test_and_install(self):
         # test if web service exists
         post_url = self.server_url + "/api/rest/process/" + self.webservice + "?"
-        r = self.__send_request(partial(requests.post, post_url, json={"command": "test"}))
+        r = self.__send_request(partial(requests.post, post_url, json={"command": "test", "library_version": __version__}))
         if r.status_code == 404:
             print(self.__TAB + ("*" * self.__WELCOME_LINE_LENGTH))
             print(self.__TAB + ("\n" + self.__TAB).join(textwrap.wrap(self.__WELCOME_INFO, self.__WELCOME_LINE_LENGTH)))
@@ -357,12 +362,14 @@ them access to the process created by this operation."""
                         raise e
             self.__processpath = processpath_to_test
             # Re-test installed service
-            r = self.__send_request(partial(requests.post, post_url, json={"command": "test"}),
+            r = self.__send_request(partial(requests.post, post_url, json={"command": "test", "library_version": __version__}),
                                     lambda s: "Test of installed web service failed, status: " + str(s))
-            extract_json(r)
+            response = extract_json(r)
+            self.__check_extension_version(response)
             self.log("Web service backend installed successfully")
         elif r.status_code == 200:
-            extract_json(r)
+            response = extract_json(r)
+            self.__check_extension_version(response)
             self.log("Web service backend exists")
         else:
             raise ServerException("Web service test failed with unexpected error, status: " + r.status_code \
@@ -407,7 +414,7 @@ them access to the process created by this operation."""
     def __delete_resource(self, resource_paths):
         post_url = self.server_url + "/api/rest/process/" + self.webservice + "?"
         for path in resource_paths:
-            self.__send_request(partial(requests.post, post_url, json={"command": "delete_resource", "path": path}),
+            self.__send_request(partial(requests.post, post_url, json={"command": "delete_resource", "library_version": __version__, "path": path}),
                                 lambda s: "Failed to delete path \"" + path + "\", status: " + str(s))
 
     def __install_webservice(self, path, unauthorized_to_save_msg, unauthorized_to_configure_msg):
@@ -498,4 +505,23 @@ them access to the process created by this operation."""
         if response.status_code not in accepted_status_codes and error_fn is not None:
             raise ServerException(error_fn(response.status_code))
         return response
+
+    def __check_extension_version(self, response, typeColumn="type", valueColumn="value"):
+        extensionVersion = None
+        try:
+            if isinstance(response, dict):
+                if response[typeColumn] == "version_info":
+                    extensionVersion = response[valueColumn]
+            elif isinstance(response, list):
+                for row in response:
+                    if row[typeColumn] == "version_info":
+                        extensionVersion = row[valueColumn]
+                        break
+        except (TypeError, KeyError):
+            # the response is in the wrong (legacy) format
+            pass
+        # at this library version, we just write a WARNING message
+        if extensionVersion is None:
+            self.log("You are using 9.3.0 or earlier version of Python Scripting Extension in RapidMiner Server. Consider upgrading it.", level=logging.WARNING, source="python")
+
 

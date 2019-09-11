@@ -59,7 +59,7 @@ Runs a RapidMiner process and returns the result(s).
 Arguments:
 - `path`: path to the RapidMiner process in the Server repository. It can be a string or a rapidminer.RepositoryLocation object.
 - `inputs`: inputs used by the RapidMiner process, as a list of pandas DataFrame objects or a single pandas DataFrame.
-- `macros`: optional dict that sets the macros in the process context according to the key-value pairs.
+- `macros`: optional dict that sets the macros in the process context according to the key-value pairs, e.g. macros={"macro1": "value1", "macro2": "value2"}
 - `queue`: the name of the queue to submit the process to. Default is DEFAULT.
 - `ignore_cleanup_errors`: boolean. Determines if any error during temporary data cleanup should be ignored or not. Default value is True.
 

@@ -14,10 +14,11 @@
 # You should have received a copy of the GNU Affero General Public License along with this program.
 # If not, see https://www.gnu.org/licenses/.
 #
+
+__version__ = "9.3.1.0"
+
 from .core.studio import Studio
 from .core.server import Server
 from .core.scoring import Scoring
 from .core.resources import File
 from .core.resources import RepositoryLocation
-
-__version__ = "9.3.0.1"

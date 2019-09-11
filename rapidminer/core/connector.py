@@ -18,6 +18,7 @@ import json
 import logging
 import sys
 import threading
+import datetime
 import pandas as pd
 from collections import OrderedDict
 from .utilities import __DEFAULT_ENCODING__
@@ -26,6 +27,7 @@ class Connector(object):
     """
     Base class for interacting with RapidMiner. The subclasses of this class should be used.
     """
+    __date_format_pattern = "%Y-%m-%d %H:%M:%S.%f"
     __id_counter__ = 0
     __lock__ = threading.Lock()
 
@@ -93,7 +95,7 @@ class Connector(object):
         Arguments:
         :param path: path to the RapidMiner process.
         :param inputs: inputs used by the RapidMiner process, as a list of input objects or a single input object.
-        :param macros: optional dict that sets the macros in the process context according to the key-value pairs.
+        :param macros: optional dict that sets the macros in the process context according to the key-value pairs, e.g. macros={"macro1": "value1", "macro2": "value2"}
         :return: the results of the RapidMiner process. It can be None, or a single object, or a tuple.
         """
         raise NotImplementedError("Method not implemented in base class.")
@@ -144,6 +146,8 @@ class Connector(object):
         otherwise deduces the type from the data and sets no special role.
 
         Taken -- with some modification -- from the legacy wrapper.py code (handleMetaData).
+
+        SIDE EFFECT: updates the date columns of the data.
 
         :param data: the pandas DataFrame.
         :param text_file: the file object representing a text resource (e.g. the result of 'open("myfile.txt", "r", encoding="utf-8")')
@@ -200,6 +204,12 @@ class Connector(object):
                 else:
                     meta_type = 'polynomial'
             metadata[name] = [meta_type, meta_role]
+            if meta_type in set(["date_time", "date", "time"]):
+                try:
+                    data[name] = data[name].apply(lambda datetime: self.output_date_format(datetime))
+                except Exception as e:
+                    self.log("Error: failed to format date/time (" + str(e) + ").", level="WARNING", source="python")
+                    data[name] = ""
         #store as json
         try:
             json.dump(metadata, text_file)
@@ -231,8 +241,8 @@ class Connector(object):
         """
         dfc = self._copy_dataframe(df) # make a copy, as the column names may be modified
         dfc.columns = self._rename_invalid_columns(dfc.columns)
-        dfc.to_csv(streams[0], index=False, encoding=__DEFAULT_ENCODING__)
         self._write_metadata(dfc, streams[1])
+        dfc.to_csv(streams[0], index=False, encoding=__DEFAULT_ENCODING__)
 
     def _deserialize_dataframe(self, csv_stream, md_stream):
         """
@@ -243,7 +253,6 @@ class Connector(object):
         :param md_stream: metadata stream, containing additional column type infos created by Studio.
         :return: pandas DataFrame object, with special rm_metadata attribute present (this stores the metadata).
         """
-        original_position = None
         try:
             metadata = json.load(md_stream)
             date_set = set(['date','time','date_time'])
@@ -260,20 +269,34 @@ class Connector(object):
                 #store date columns for parsing
                 if value[0] in date_set:
                     date_columns.append(key)
-            #read example set from csv
-            original_position = csv_stream.tell()
-            try:
-                data = pd.read_csv(csv_stream,index_col=None,encoding=__DEFAULT_ENCODING__,parse_dates=date_columns,infer_datetime_format=True)
-            except TypeError:
-                #if the argument inter_datetime_format is not allowed in the current version do without
-                csv_stream.seek(original_position)
-                data = pd.read_csv(csv_stream,index_col=None,encoding=__DEFAULT_ENCODING__,parse_dates=date_columns)
-            self._suppress_pandas_warning(lambda: self._set_metadata(data, meta_dict))
         except:
-            #reading with meta data failed
-            self.log("Failed to use the meta data.", level=logging.WARNING)
-            if original_position is not None:
-                csv_stream.seek(original_position)
-            data = pd.read_csv(csv_stream,index_col=None,encoding=__DEFAULT_ENCODING__)
-            self._suppress_pandas_warning(lambda: self._set_metadata(data, None))
+            meta_dict = None
+        data = pd.read_csv(csv_stream,index_col=None,encoding='utf-8')
+        self._suppress_pandas_warning(lambda: self._set_metadata(data, meta_dict))
+        for date_column, [type, _] in meta_dict.items():
+            try:
+                if type in set(["date_time", "date", "time"]):
+                    data[date_column] = data[date_column].apply(lambda date: self.input_date_format(date))
+            except (TypeError, ValueError) as e:
+                # fallback to old method
+                try:
+                    self.log("Warning: failed to parse date/time in column '" + date_column + "' (" + str(e) + "). Trying different parsing strategy.", level=logging.WARNING, source="python")
+                    data[date_column] = data[date_column].apply(lambda date: self.input_date_format_legacy(date))
+                except Exception as e:
+                    self.log("Error: failed to parse date/time in column '" + date_column + "' (" + str(e) + ").", level=logging.WARNING, source="python")
+                    data[date_column] = ""
+        self._suppress_pandas_warning(lambda: self._set_metadata(data, meta_dict))
         return data
+
+    def input_date_format(self, date_string):
+        if date_string == "" or pd.isnull(date_string):
+            return None
+        return datetime.datetime.strptime(date_string, self.__date_format_pattern)
+
+    def input_date_format_legacy(self, date_string):
+        return pd.to_datetime(date_string, infer_datetime_format=True)
+
+    def output_date_format(self, dt):
+        if pd.isnull(dt):
+            return ""
+        return dt.strftime(self.__date_format_pattern)[:23]
