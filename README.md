@@ -14,9 +14,9 @@ This Python package allows you to interact with RapidMiner Studio and Server. Yo
 
 ## Requirements
 
-* RapidMiner Studio *9.3.0* for Studio class
-* RapidMiner Server *9.3.0* for Server class
-* Python Scripting extension *9.3.0* installed for both Studio and Server, download it from the [Marketplace](https://marketplace.rapidminer.com/UpdateServer/faces/product_details.xhtml?productId=rmx_python_scripting)
+* RapidMiner Studio *9.5.0* for Studio class
+* RapidMiner Server *9.5.0* for Server class
+* Python Scripting extension *9.5.0* installed for both Studio and Server, download it from the [Marketplace](https://marketplace.rapidminer.com/UpdateServer/faces/product_details.xhtml?productId=rmx_python_scripting)
 
 ## Known current limitations
 
