@@ -37,6 +37,9 @@ from .resources import File
 from .resources import RepositoryLocation
 from .utilities import GeneralException
 from .utilities import __open__
+from .utilities import Version
+from .utilities import VersionException
+from .serdeutils import read_example_set, write_example_set
 
 from .. import __version__
 
@@ -110,7 +113,7 @@ class Studio(Connector):
             self.__run_rapidminer(input_files=list(path), output_files=[File(output_dir) for output_dir in output_dirs], command_type="READ_RESOURCE")
             output_files = []
             for output_dir in output_dirs:
-                csv_files = glob.glob(output_dir + "/*.csv")
+                csv_files = glob.glob(output_dir + "/*.csv-encoded")
                 if (len(csv_files) == 1):
                     output_files.append(csv_files[0])
                 else:
@@ -352,8 +355,8 @@ class Studio(Connector):
             try:
                 self.__start_printer_thread(p)
                 p.wait()
-                if not threadid in self.__rapidminer_version:
-                    self.log("You are using 9.3.0 or earlier version of Python Scripting Extension in RapidMiner Studio. Upgrade it in the 'Extensions / Marketplace' menu in Studio.", level=logging.WARNING, source="python")
+                if not threadid in self.__rapidminer_version or not Version(self.__rapidminer_version[threadid]).is_at_least(Version("9.5.0")):
+                    raise VersionException("RapidMiner Studio", "to 9.5.0 or newer")
                 if not threadid in self.__last_exit_code__ or self.__last_exit_code__[threadid] != 0:
                     if threadid in self.__last_exception_msg__:
                         raise StudioException("Error while executing studio: " + self.__last_exception_msg__[threadid])
@@ -373,26 +376,13 @@ class Studio(Connector):
         outputs.sort()
         result = []
         for output in outputs:
-            if not output.endswith(".pmd"):
+            if not output.endswith(".pmd-encoded"):
                 result.append(self.__deserialize_from_file(output))
         if len(result) == 0:
             return None
         elif len(result) == 1:
             return result[0]
         return tuple(result)
-
-    def __serialize_dataframe_to_file(self, df, basename):
-        """
-        Serializes a pandas DataFrame to CSV, using the format reuqired by RapidMiner Read CSV operator.
-
-        :param df: the pandas DataFrame.
-        :param basename: the base filename, without extension.
-        :return:
-        """
-        with __open__(basename + ".csv", "w") as csv_file:
-            with __open__(basename + ".pmd", "w") as meta_file:
-                self._serialize_dataframe(df, [csv_file, meta_file])
-        return basename + ".csv"
 
     def __serialize_to_file(self, object, basename):
         """
@@ -403,7 +393,10 @@ class Studio(Connector):
         :return:
         """
         if isinstance(object, pandas.DataFrame):
-            return self.__serialize_dataframe_to_file(object, basename)
+            with __open__(basename + ".csv-encoded", "w") as output_csv:
+                with __open__(basename + ".pmd-encoded", "w") as output_pmd:
+                    write_example_set(self._copy_dataframe(object), output_csv, output_pmd)
+            return basename + ".csv-encoded"
         else:
             # try to write out as a file like object first
             try:
@@ -421,24 +414,6 @@ class Studio(Connector):
                         pickle.dump(object, dump_file)
                     return basename + ".bin"
 
-    def __deserialize_dataframe_from_file(self, csv_file, md_file):
-        """
-        Reads a csv file into a pandas Dataframe. Code -- with slight modifications -- taken from wrapper.py (readExampleSet).
-
-        :param csv_file: the csv file to read from. Must have special format (which is created by the corresponding Java
-                code in the Studio part.
-        :param md_file: metadata file, containing additional column type infos created by Studio.
-        :return: pandas DataFrame object, with special rm_metadata attribute present (this stores the metadata).
-        """
-        try:
-            with __open__(md_file,'r') as md_stream:
-                with __open__(csv_file,'r') as csv_stream:
-                    return self._deserialize_dataframe(csv_stream, md_stream)
-        except:
-            #no metadata found
-            with __open__(csv_file,'r') as csv_stream:
-                return self._deserialize_dataframe(csv_stream, None)
-
     def __deserialize_from_file(self, filename):
         """
         Reads the given file. The actual method depends on the file extension
@@ -446,10 +421,11 @@ class Studio(Connector):
         :param filename: name of the file
         :return: an arbitrary python object (DataFrame, file object or any other python type pickled out)
         """
-        extension = os.path.splitext(filename)[1]
-        if(extension=='.csv'):
-            md_file = os.path.splitext(filename)[0] + ".pmd"
-            return self.__deserialize_dataframe_from_file(filename, md_file)
+        (path, extension) = os.path.splitext(filename)
+        if extension=='.csv-encoded':
+            with __open__(path + ".csv-encoded", 'r') as input_csv:
+                with __open__(path + ".pmd-encoded", 'r') as input_pmd:
+                    return read_example_set(input_csv, input_pmd)
         elif extension=='.bin':
             with open(filename, 'rb') as f:
                 try:

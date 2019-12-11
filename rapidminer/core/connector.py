@@ -21,7 +21,7 @@ import threading
 import datetime
 import pandas as pd
 from collections import OrderedDict
-from .utilities import __DEFAULT_ENCODING__
+from .serdeutils import set_metadata_without_warning
 
 class Connector(object):
     """
@@ -138,165 +138,13 @@ class Connector(object):
         else:
             return columns
 
-    # TODO refactor this method to reduce its cognitivy complexity (44->15)
-    def _write_metadata(self, data, text_file):
-        """
-        Writes the meta data to a stream (a file object with text type)
-        uses the meta data from rm_metadata attribute if present
-        otherwise deduces the type from the data and sets no special role.
-
-        Taken -- with some modification -- from the legacy wrapper.py code (handleMetaData).
-
-        SIDE EFFECT: updates the date columns of the data.
-
-        :param data: the pandas DataFrame.
-        :param text_file: the file object representing a text resource (e.g. the result of 'open("myfile.txt", "r", encoding="utf-8")')
-        :return:
-        """
-        metadata = OrderedDict()
-        #check if rm_metadata attribute is present and a dictionary
-        try:
-            if isinstance(data.rm_metadata, dict):
-                meta_isdict = True
-            else:
-                meta_isdict = False
-                if data.rm_metadata is not None:
-                    self.log("'rm_metadata' must be a dictionary.", level=logging.WARNING)
-        except:
-            meta_isdict = False
-
-        for name in data.columns.values:
-            try:
-                meta = data.rm_metadata[name]
-                if isinstance(meta, tuple) and len(meta) == 2 and meta_isdict:
-                    meta_type, meta_role = meta
-                else:
-                    if meta_isdict and meta is not None:
-                        self.log("'rm_metadata[" + name + "]' must be a tuple of length 2, e.g. data.rm_metadata['column1']=('binominal','label')", level=logging.WARNING)
-                    if isinstance(meta, tuple) or isinstance(meta, list) and len(meta) > 0:
-                        meta_type = meta[0]
-                    else:
-                        try:
-                            meta_type = str(meta)
-                        except:
-                            meta_type = None
-                    if isinstance(meta, tuple) or isinstance(meta, list) and len(meta) > 1:
-                        meta_role = meta[1]
-                    else:
-                        meta_role = None
-            except:
-                meta_type = None
-                meta_role = None
-
-            if meta_role is None:
-                meta_role = 'attribute'
-            #choose type by dtype of the column
-            if meta_type is None:
-                kind_char = data.dtypes[name].kind
-                if kind_char in ('i','u'):
-                    meta_type = 'integer'
-                elif kind_char in ('f'):
-                    meta_type = 'real'
-                elif kind_char in ('M'):
-                    meta_type = 'date_time'
-                elif kind_char in ('b'):
-                    meta_type = 'binominal'
-                else:
-                    meta_type = 'polynomial'
-            metadata[name] = [meta_type, meta_role]
-            if meta_type in set(["date_time", "date", "time"]):
-                try:
-                    data[name] = data[name].apply(lambda datetime: self.output_date_format(datetime))
-                except Exception as e:
-                    self.log("Error: failed to format date/time (" + str(e) + ").", level="WARNING", source="python")
-                    data[name] = ""
-        #store as json
-        try:
-            json.dump(metadata, text_file)
-        except Exception as e:
-            self.log("Failed to send meta data from Python script to RapidMiner (reason: " + str(e) + ").", level=logging.WARNING)
-
-    def _set_metadata(self, df, metadata):
-        df.rm_metadata = metadata
-
     def _copy_dataframe(self, df):
         """
-        Returns a copy of the metadata. Handles the special 'rm_metadata' attribute as well.
-
-        :param df: a pandas DataFrame.
-        :return: copy of the pandas DataFrame.
-        """
-        copy = df.copy()
-        if hasattr(df, "rm_metadata"):
-            self._suppress_pandas_warning(lambda: self._set_metadata(copy, df.rm_metadata))
-        return copy;
-
-    def _serialize_dataframe(self, df, streams):
-        """
-        Serializes a pandas DataFrame to CSV, using the format required by RapidMiner Read CSV operator.
-
-        :param df: the pandas DataFrame.
-        :param streams: list of (text) file objects. The list should contain to objects, the first is foir the actual data (csv), the second for the metadata (pmd).
+        Copies the dataframe, together with rm_metadata
+        :param df:
         :return:
         """
-        dfc = self._copy_dataframe(df) # make a copy, as the column names may be modified
-        dfc.columns = self._rename_invalid_columns(dfc.columns)
-        self._write_metadata(dfc, streams[1])
-        dfc.to_csv(streams[0], index=False, encoding=__DEFAULT_ENCODING__)
-
-    def _deserialize_dataframe(self, csv_stream, md_stream):
-        """
-        Reads a csv file into a pandas Dataframe. Code --with slight modifications -- taken from wrapper.py (readExampleSet).
-
-        :param csv_stream: the -seekable- csv stream to read from. Must have special format (which is created by the corresponding Java
-                code in the Studio part.
-        :param md_stream: metadata stream, containing additional column type infos created by Studio.
-        :return: pandas DataFrame object, with special rm_metadata attribute present (this stores the metadata).
-        """
-        try:
-            metadata = json.load(md_stream)
-            date_set = set(['date','time','date_time'])
-            date_columns = []
-            meta_dict={}
-            #different iteration methods for python 2 and 3
-            try:
-                items = metadata.iteritems()
-            except AttributeError:
-                items = metadata.items()
-            for key, value in items:
-                #convert to tuple
-                meta_dict[key]=(value[0],None if value[1]=="attribute" else value[1])
-                #store date columns for parsing
-                if value[0] in date_set:
-                    date_columns.append(key)
-        except:
-            meta_dict = None
-        data = pd.read_csv(csv_stream,index_col=None,encoding='utf-8')
-        self._suppress_pandas_warning(lambda: self._set_metadata(data, meta_dict))
-        for date_column, [type, _] in meta_dict.items():
-            try:
-                if type in set(["date_time", "date", "time"]):
-                    data[date_column] = data[date_column].apply(lambda date: self.input_date_format(date))
-            except (TypeError, ValueError) as e:
-                # fallback to old method
-                try:
-                    self.log("Warning: failed to parse date/time in column '" + date_column + "' (" + str(e) + "). Trying different parsing strategy.", level=logging.WARNING, source="python")
-                    data[date_column] = data[date_column].apply(lambda date: self.input_date_format_legacy(date))
-                except Exception as e:
-                    self.log("Error: failed to parse date/time in column '" + date_column + "' (" + str(e) + ").", level=logging.WARNING, source="python")
-                    data[date_column] = ""
-        self._suppress_pandas_warning(lambda: self._set_metadata(data, meta_dict))
-        return data
-
-    def input_date_format(self, date_string):
-        if date_string == "" or pd.isnull(date_string):
-            return None
-        return datetime.datetime.strptime(date_string, self.__date_format_pattern)
-
-    def input_date_format_legacy(self, date_string):
-        return pd.to_datetime(date_string, infer_datetime_format=True)
-
-    def output_date_format(self, dt):
-        if pd.isnull(dt):
-            return ""
-        return dt.strftime(self.__date_format_pattern)[:23]
+        copied = df.copy()
+        if hasattr(df, "rm_metadata"):
+            set_metadata_without_warning(copied, df.rm_metadata)
+        return copied

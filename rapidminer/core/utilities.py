@@ -17,22 +17,15 @@
 import os
 import sys
 
-__DEFAULT_ENCODING__ = "utf-8"
-
 if sys.version_info.major > 2:
     def __open__(file, mode):
-        return open(file, mode, encoding=__DEFAULT_ENCODING__)
-elif sys.version_info.minor > 5:
-    import io
-    def __open__(file, mode):
-        return io.open(file, mode, encoding=__DEFAULT_ENCODING__)
+        return open(file, mode, encoding="utf-8")
 else:
-    import codecs
-    def __open__(file, mode):
-        return codecs.open(file, mode, encoding=__DEFAULT_ENCODING__)
+    raise GeneralException("Python 2 is not supported. Use Python 3.")
+
 __STDOUT_ENCODING__ = os.getenv("PYTHONIOENCODING") # encoding in python should be the same as in Studio (with -Dfile.encoding param or system global), in order to handle special characters well
 if __STDOUT_ENCODING__ is None or __STDOUT_ENCODING__ == "":
-    __STDOUT_ENCODING__ = __DEFAULT_ENCODING__
+    __STDOUT_ENCODING__ = "utf-8"
 
 class GeneralException(Exception):
     """
@@ -44,6 +37,12 @@ class GeneralException(Exception):
 class ServerException(Exception):
     def __init__(self, msg=""):
         super(Exception, self).__init__(msg)
+
+class VersionException(Exception):
+    def __init__(self, product, upgrade_to):
+        super(Exception, self).__init__("You are using an older version of Python Scripting Extension in " 
+                                        + product + ". Upgrade to "
+                                        + upgrade_to + " version to use this version of the package.")
 
 def extract_json(res):
     """
@@ -69,3 +68,18 @@ def extract_json(res):
             raise ServerException(str)
     return response
 
+class Version:
+    def __init__(self, version):
+        v = version.split(".")
+        # cut -BETA, -SNAPSHOT from last component, etc.
+        [self.major, self.minor, self.patch] = [int(v[0]), int(v[1]), int(v[2].rsplit('-', 1)[0])]
+ 
+    def is_at_least(self, other):
+        selflist = [self.major, self.minor, self.patch]
+        otherlist = [other.major, other.minor, other.patch]
+        for i in range(len(selflist)):
+            if selflist[i] > otherlist[i]:
+                return True
+            elif selflist[i] < otherlist[i]:
+                return False
+        return True

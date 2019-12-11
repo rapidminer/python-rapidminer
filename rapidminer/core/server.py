@@ -24,8 +24,10 @@ from time import sleep
 from .connector import Connector
 from .utilities import ServerException
 from .utilities import extract_json
-from .utilities import __DEFAULT_ENCODING__
+from .utilities import Version
+from .utilities import VersionException
 from .resources import RepositoryLocation
+from .serdeutils import read_example_set, write_example_set
 from functools import partial
 import warnings
 import io
@@ -176,21 +178,21 @@ them access to the process created by this operation."""
             # in the 9.3.0 version, we expect a list with 2 elements; from 9.3.1 we expect 3 elements
             if not isinstance(response, list) or len(response) not in [2,3]:
                 raise ServerException("Invalid response from server. The entry may not be a data set.")
-            metadata = None
             csv_data = None
+            metadata = None
             for row in response:
                 try:
-                    if row["extension"] == "csv":
+                    if row["extension"] == "csv-encoded":
                         csv_data = io.StringIO(row["content"])
-                    elif row["extension"] == "pmd":
+                    elif row["extension"] == "pmd-encoded":
                         metadata = io.StringIO(row["content"])
                 except KeyError as e:
                     raise ServerException("The response from the server differs from the expected.") from e
-            if metadata is None:
-                raise ServerException("No metadata found.")
             if csv_data is None:
                 raise ServerException("No data found.")
-            dataframe = self._deserialize_dataframe(csv_data, metadata)
+            if metadata is None:
+                raise ServerException("No metadata found.")
+            dataframe = read_example_set(csv_data, metadata)
             resources.append(dataframe)
         if single_input:
             return resources[0]
@@ -218,13 +220,13 @@ them access to the process created by this operation."""
                 raise ServerException("Output path should be 'str' or 'rapidminer.RepositoryLocation object, not '" + str(type(out)) + "'.")
             post_url = self.server_url + "/api/rest/process/" + self.webservice + "?"
             if type(df) == pd.DataFrame:
-                md_stream = io.StringIO()
                 csv_stream = io.StringIO()
-                self._serialize_dataframe(df,[csv_stream,md_stream])
-                data = [{"extension": "pmd", "content": md_stream.getvalue()},
-                        {"extension": "csv", "content": csv_stream.getvalue()}]
+                md_stream = io.StringIO()
+                write_example_set(self._copy_dataframe(df), csv_stream, md_stream)
+                data = [{"extension": "csv-encoded", "content": csv_stream.getvalue()},
+                        {"extension": "pmd-encoded", "content": md_stream.getvalue()}]
             else:
-                raise ValueError("dataframe parameter must be one or more Pandas DataFrames")
+                raise ValueError("resource parameter must be one or more Pandas DataFrames")
             r = self.__send_request(partial(requests.post, post_url, json={"command": "write_resource", "library_version": __version__, "path": out, "data": data}),
                                     lambda s: "Failed to save input no. " + str(idx+1) + ", status: " + str(s)
                                     + (". The web service backend may have been deleted, please try to use a new Server class." if s == 404 else ""))
@@ -310,7 +312,7 @@ them access to the process created by this operation."""
 
     def __connect(self):
         # Encode the basic Authorization header
-        userAndPass = base64.b64encode(bytes(self.username + ":" + self.__password, __DEFAULT_ENCODING__)).decode("ascii")
+        userAndPass = base64.b64encode(bytes(self.username + ":" + self.__password, "utf-8")).decode("ascii")
         headers = { 'Authorization' : 'Basic %s' %  userAndPass }
 
         r = self.__send_request(partial(requests.get, url=self.server_url + '/api/rest/tokenservice'),
@@ -385,7 +387,7 @@ them access to the process created by this operation."""
         post_url = self.server_url + "/executions/jobs?"
         body = {
             "queueName": queue,
-            "process": base64.b64encode(bytes(process, __DEFAULT_ENCODING__)).decode("ascii"),
+            "process": base64.b64encode(bytes(process, "utf-8")).decode("ascii"),
             "location": location,
             "context": context
         }
@@ -520,8 +522,7 @@ them access to the process created by this operation."""
         except (TypeError, KeyError):
             # the response is in the wrong (legacy) format
             pass
-        # at this library version, we just write a WARNING message
-        if extensionVersion is None:
-            self.log("You are using 9.3.0 or earlier version of Python Scripting Extension in RapidMiner Server. Consider upgrading it.", level=logging.WARNING, source="python")
+        if extensionVersion is None or not Version(extensionVersion).is_at_least(Version("9.5.0")):
+            raise VersionException("RapidMiner Server", "to 9.5.0 or newer")
 
 
