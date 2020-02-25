@@ -20,22 +20,39 @@ import tempfile
 import xml.etree.ElementTree as et
 import pandas as pd
 import getpass
+try:
+    import cPickle as pickle
+except:
+    import pickle
 from time import sleep
 from .connector import Connector
 from .utilities import ServerException
+from .utilities import GeneralException
 from .utilities import extract_json
 from .utilities import Version
 from .utilities import VersionException
 from .resources import RepositoryLocation
-from .serdeutils import read_example_set, write_example_set
+from .serdeutils import read_example_set, write_example_set, is_file_object
 from functools import partial
 import warnings
 import io
 import logging
 import textwrap
 import zeep
+import os
+import sys
+import json
 
 from .. import __version__
+
+def get_server():
+    if "RM_SERVER_JSESSIONID" in os.environ:
+        default_url = "http://rm-server-svc:8080"
+        if "SERVER_BASE_URL" in os.environ:
+            default_url = os.environ["SERVER_BASE_URL"]
+        return Server(url=default_url)
+    else:
+        return Server()
 
 class Server(Connector):
     """
@@ -93,8 +110,9 @@ want to allow other users later to use the API, you will need to give
 them access to the process created by this operation."""
     __WELCOME_LINE_LENGTH = 70
     __TAB = "    "
+    __SHARED_PROCESS_FOLDER = "/shared"
 
-    def __init__(self, url='http://localhost:8080', username=None, password=None, row_limit=50000, attribute_limit=500,
+    def __init__(self, url='http://localhost:8080', username=None, password=None, size_limit_kb=50000,
                  webservice="Repository Service", processpath=None, tempfolder=None, install=True, verifySSL=True,
                  logger=None, loglevel=logging.INFO):
         """
@@ -104,8 +122,7 @@ them access to the process created by this operation."""
         :param url: Server url path (hostname and port as well)
         :param username: user to use Server with
         :param password: password for the username. If not provided, you will need to enter it.
-        :param row_limit: maximum number of rows that are allowed to be read from Server. Reading or writing large objects may degrade Server's performance or lead to out of memory errors. Default value is 50000.
-        :param attribute_limit: maximum number of attributes that are allowed to be read from Server. Reading or writing large objects may degrade Server's performance or lead to out of memory errors. Default value is 500.
+        :param size_limit_kb: maximum number of kilobytes that are allowed to be read from or writing to Server. Reading or writing large objects may degrade Server's performance or lead to out of memory errors. Default value is 50000.
         :param webservice: this API requires an auxiliary process installed as a webservice on the Server instance. This parameter specifies the name for this webservice. The webservice is automatically installed if it has not been.
         :param processpath: path in the repository where the process behind the webservice will be saved. If not specified, a user prompt asks for the path, but proposes a default value. Note that you may want to make this process executable for all users.
         :param tempfolder: repository folder on Server that can be used for storing temporary objects by run_process method. Default value is "tmp" inside the user home folder. Note that in case of certain failures, you may need to delete remaining temporary objects from this folder manually.
@@ -117,25 +134,29 @@ them access to the process created by this operation."""
         super(Server, self).__init__(logger, loglevel)
         # URL of the Rapidminer Server
         self.server_url = url
-        # RapidMiner Server Username
-        if username is None:
-            username = input('Username: ')
-        self.username = username
-        # RapidMiner Server Password
-        if password is None:
-            password = getpass.getpass(prompt='Password: ')
-        self.__password = password
-        self.row_limit = row_limit
-        self.attribute_limit = attribute_limit
+        if self.__rm_server_jsessionid() is None:
+            # RapidMiner Server Username
+            if username is None:
+                username = input('Username: ')
+            self.username = username
+            # RapidMiner Server Password
+            if password is None:
+                password = getpass.getpass(prompt='Password: ')
+            self.__password = password
+        else:
+            self.username = None
+            self.__password = None
+        self.size_limit_kb = size_limit_kb
         self.webservice = webservice
         self.__processpath = processpath
         if tempfolder is None:
-            self.__tempfolder = "/home/" + self.username + "/tmp/"
+            self.__tempfolder = "/home/" + self.__username() + "/tmp/"
         else:
             self.__tempfolder = tempfolder
             self.__tempfolder += "/" if not self.__tempfolder.endswith("/") else ""
         self.__install = install
         self.__verifySSL = verifySSL
+        self.__user_agent =  "RapidMiner Python Package " + str(__version__)
 
         # Connect to the RM Server
         self.__connect()
@@ -150,7 +171,7 @@ them access to the process created by this operation."""
 
     def read_resource(self, path):
         """
-        Reads one or more resources from the specified Server repository locations. Only supports reading data sets currently. Does not allow the retrieval of data sets larger that the limit settings allow (row_limit, attribute_limit).
+        Reads one or more resources from the specified Server repository locations. Does not allow the retrieval of objects larger than the limit settings allow (size_limit_kb, limit in kilobytes).
 
         Arguments:
         :param path: the path(s) to the resource(s) inside Server repository. Multiple paths can be specified as list or tuple. A path can be a string or a rapidminer.RepositoryLocation object.
@@ -170,30 +191,40 @@ them access to the process created by this operation."""
             elif not isinstance(inp, str):
                 raise ServerException("Input path should be 'str' or 'rapidminer.RepositoryLocation object, not '" + str(type(inp)) + "'.")
             post_url = self.server_url + "/api/rest/process/" + self.webservice + "?"
-            r = self.__send_request(partial(requests.post, post_url, json={"command": "read_resource", "library_version": __version__, "path": inp, "row_limit": self.row_limit, "attribute_limit": self.attribute_limit}),
+            r = self.__send_request(partial(requests.post, post_url, json={"command": "read_resource", "library_version": __version__, "path": inp, "size_limit_kb": self.size_limit_kb}),
                                     lambda s: "Failed to read input \"" + inp + "\", status: " + str(s) 
                                     + (". The web service backend may have been deleted, please try to use a new Server class." if s == 404 else ""))
             response = extract_json(r)
             self.__check_extension_version(response, typeColumn="extension", valueColumn="content")
-            # in the 9.3.0 version, we expect a list with 2 elements; from 9.3.1 we expect 3 elements
-            if not isinstance(response, list) or len(response) not in [2,3]:
-                raise ServerException("Invalid response from server. The entry may not be a data set.")
+            if not isinstance(response, list) or len(response) not in [1,2,3]:
+                raise ServerException("Invalid response from server: " + response)
             csv_data = None
             metadata = None
             for row in response:
                 try:
-                    if row["extension"] == "csv-encoded":
-                        csv_data = io.StringIO(row["content"])
-                    elif row["extension"] == "pmd-encoded":
-                        metadata = io.StringIO(row["content"])
+                    ext = row["extension"]
+                    content = row["content"]
+                    if ext == "csv-encoded":
+                        csv_data = io.StringIO(content)
+                    elif ext == "pmd-encoded":
+                        metadata = io.StringIO(content)
+                    elif ext == "bin":
+                        try:
+                            obj = pickle.load(io.BytesIO(base64.b64decode(content)))
+                        except Exception as exc:
+                            raise GeneralException("Error while trying to load pickled object (note that Python 2 objects may not be readable): " + str(exc))
+                        resources.append(obj)
+                    elif ext == 'fo':
+                        resources.append(io.BytesIO(base64.b64decode(content.encode("utf-8")))) # reads the file to memory
                 except KeyError as e:
                     raise ServerException("The response from the server differs from the expected.") from e
-            if csv_data is None:
+            if csv_data is not None:
+                if metadata is None:
+                    raise ServerException("No metadata found.")
+                dataframe = read_example_set(csv_data, metadata)
+                resources.append(dataframe)
+            if metadata is not None and csv_data is None:
                 raise ServerException("No data found.")
-            if metadata is None:
-                raise ServerException("No metadata found.")
-            dataframe = read_example_set(csv_data, metadata)
-            resources.append(dataframe)
         if single_input:
             return resources[0]
         else:
@@ -201,10 +232,10 @@ them access to the process created by this operation."""
 
     def write_resource(self, resource, path):
         """
-        Writes one or more resources to the Server repository. Only supports writing data sets (pandas DataFrames) currently.
+        Writes pandas DataFrame(s) or other objects to the Server repository.
 
         Arguments:
-        :param resource: the pandas DataFrame(s). Multiple DataFrames can be specified as list or tuple. A path can be a string or a rapidminer.RepositoryLocation object.
+        :param resource: a resource can be a pandas DataFrame, a pickle-able python object or a file-like object. Multiple DataFrames or other objects can be specified as list or tuple. A path can be a string or a rapidminer.RepositoryLocation object.
         :param path: the target path(s) to the resource(s) inside Server repository. The same number of path values are required as the number of resources.
         """
         if not ((isinstance(resource, tuple) or isinstance(resource, list))):
@@ -213,20 +244,30 @@ them access to the process created by this operation."""
             path = [path]
         if len(resource) != len(path):
             raise ValueError("resource and path must contain the same number of values")
-        for df, out, idx in zip(resource, path, range(len(resource))):
+        for obj in resource:
+            if sys.getsizeof(obj) > self.size_limit_kb * 1024:
+                raise ServerException(
+                    "Specified object is larger than the current size limit for objects written to Server (" 
+                    + str(self.size_limit_kb) + " KB). Increase size_limit_kb setting of this class if you "
+                    + "want write larger objects. Note that writing very large objects via this API may degrade Server performance or cause it to run out of memory.")
+        for obj, out, idx in zip(resource, path, range(len(resource))):
             if isinstance(out, RepositoryLocation):
                 out = out.to_string(with_prefix=False)
             elif not isinstance(out, str):
                 raise ServerException("Output path should be 'str' or 'rapidminer.RepositoryLocation object, not '" + str(type(out)) + "'.")
             post_url = self.server_url + "/api/rest/process/" + self.webservice + "?"
-            if type(df) == pd.DataFrame:
+            if type(obj) == pd.DataFrame:
                 csv_stream = io.StringIO()
                 md_stream = io.StringIO()
-                write_example_set(self._copy_dataframe(df), csv_stream, md_stream)
+                write_example_set(self._copy_dataframe(obj), csv_stream, md_stream)
                 data = [{"extension": "csv-encoded", "content": csv_stream.getvalue()},
                         {"extension": "pmd-encoded", "content": md_stream.getvalue()}]
+            elif is_file_object(obj):
+                raise ServerException("Writing file objects is not supported. Read the file content into the memory before calling this method if you want to write it to the repository.")
             else:
-                raise ValueError("resource parameter must be one or more Pandas DataFrames")
+                bin_stream = io.BytesIO()
+                pickle.dump(obj, bin_stream)
+                data = [{"extension": "bin", "content": base64.b64encode(bin_stream.getvalue()).decode("utf-8")}]
             r = self.__send_request(partial(requests.post, post_url, json={"command": "write_resource", "library_version": __version__, "path": out, "data": data}),
                                     lambda s: "Failed to save input no. " + str(idx+1) + ", status: " + str(s)
                                     + (". The web service backend may have been deleted, please try to use a new Server class." if s == 404 else ""))
@@ -239,11 +280,11 @@ them access to the process created by this operation."""
 
         Arguments:
         :param path: path to the RapidMiner process in the Server repository. It can be a string or a rapidminer.RepositoryLocation object.
-        :param inputs: inputs used by the RapidMiner process, as a list of pandas DataFrame objects or a single pandas DataFrame.
+        :param inputs: inputs used by the RapidMiner process, an input can be a pandas DataFrame, a pickle-able python object or a file-like object.
         :param macros: optional dict that sets the macros in the process context according to the key-value pairs, e.g. macros={"macro1": "value1", "macro2": "value2"}
         :param queue: the name of the queue to submit the process to. Default is DEFAULT.
         :param ignore_cleanup_errors: boolean. Determines if any error during temporary data cleanup should be ignored or not. Default value is True.
-        :return: the results of the RapidMiner process. It can be None, or a single pandas DataFrame object, or a tuple of DataFrames.
+        :return: the results of the RapidMiner process. It can be None, or a single object, or a tuple. One result may be a pandas DataFrame, a pickle-able python object or a file-like object.
         """
         if isinstance(path, RepositoryLocation):
             path = path.to_string(with_prefix=False)
@@ -310,58 +351,101 @@ them access to the process created by this operation."""
 # Private functions #
 #####################
 
-    def __connect(self):
+    def __username(self):
+        if "RM_SERVER_JSESSIONID" in os.environ:
+            if "JUPYTERHUB_USER" in os.environ:
+                return os.environ["JUPYTERHUB_USER"]
+            else:
+                raise ServerException("Internal exception: JUPYTERHUB_USER environment variable not set.")
+        else:
+            return self.username
+
+    def __rm_server_jsessionid(self):
+        if "RM_SERVER_JSESSIONID" in os.environ:
+            return os.environ["RM_SERVER_JSESSIONID"]
+        else:
+            return None
+
+    def __connect_rm_server_jsessionid(self, rm_server_jsessionid):
+        cookies = {
+            "Cookie": "RM_SERVER_JSESSIONID=" + rm_server_jsessionid
+        }
+        r = self.__send_request(partial(requests.get, url=self.server_url + '/internal/jaxrest/tokenservice',
+                                       allow_redirects=False),
+                                error_fn=lambda s:
+                                "Connection error, status: " + str(s) + ".",
+                                reconnect=False, headers_fn=lambda: cookies)
+        rt = json.loads(r.text)
+        if "Access denied" in rt:
+            raise ServerException("Connection error: Access denied")
+
+        # JWT idToken for the RM Server
+        return rt['idToken']
+
+    def __connect_basic_auth_header(self):
         # Encode the basic Authorization header
         userAndPass = base64.b64encode(bytes(self.username + ":" + self.__password, "utf-8")).decode("ascii")
         headers = { 'Authorization' : 'Basic %s' %  userAndPass }
 
         r = self.__send_request(partial(requests.get, url=self.server_url + '/api/rest/tokenservice'),
                                 error_fn=lambda s:
-                                    "Connection error, status: " + str(s) + "."
-                                    + (" Make sure that you entered a valid username and password." if s == 401 else ""),
+                                "Connection error, status: " + str(s) + "."
+                                + (" Make sure that you entered a valid username and password." if s == 401 else ""),
                                 reconnect=False, headers_fn=lambda: headers)
         if "Access denied" in r.text:
             raise ServerException("Connection error: Access denied")
 
         # JWT idToken for the RM Server
-        self.idToken = r.json()['idToken']
+        return r.json()['idToken']
 
+    def __connect(self):
+        if self.__rm_server_jsessionid() is not None:
+            jwt=self.__connect_rm_server_jsessionid(self.__rm_server_jsessionid())
+        else:
+            jwt=self.__connect_basic_auth_header()
         # Bearer Authorization header
-        self.auth_header = { 'Authorization' : 'Bearer %s' %  self.idToken }
+        self.auth_header = { 'Authorization' : 'Bearer %s' %  jwt }
         self.log("Successfully connected to the Server")
 
+    def __print_welcome_msg(self):
+        # text displayed to explain why the user needs to choose a path where the webservice process is installed to
+        print(self.__TAB + ("*" * self.__WELCOME_LINE_LENGTH))
+        print(self.__TAB + ("\n" + self.__TAB).join(textwrap.wrap(self.__WELCOME_INFO, self.__WELCOME_LINE_LENGTH)))
+        print(self.__TAB + ("*" * self.__WELCOME_LINE_LENGTH))
+        
     def __test_and_install(self):
         # test if web service exists
         post_url = self.server_url + "/api/rest/process/" + self.webservice + "?"
+        shared_folder_exists = self.__is_folder(self.__SHARED_PROCESS_FOLDER)
         r = self.__send_request(partial(requests.post, post_url, json={"command": "test", "library_version": __version__}))
         if r.status_code == 404:
-            print(self.__TAB + ("*" * self.__WELCOME_LINE_LENGTH))
-            print(self.__TAB + ("\n" + self.__TAB).join(textwrap.wrap(self.__WELCOME_INFO, self.__WELCOME_LINE_LENGTH)))
-            print(self.__TAB + ("*" * self.__WELCOME_LINE_LENGTH))
+            if not shared_folder_exists:
+                self.__print_welcome_msg()
             self.log("Web service is not installed, installing it with the name '" + self.webservice + "'...")
-            default_webservice_path = "/repository_api/" + self.webservice
-            # if there is no process path specified, try to get it from user input a couple of times
-            tries = self.__PROCESS_PATH_TRIES if self.__processpath is None else 1
-            for _ in range(tries):
-                processpath_to_test = input("Please enter full repository path for installing the process - it will be accessible by all users"
-                                        + " [" + default_webservice_path + "]: ") if self.__processpath is None else self.__processpath
-                if processpath_to_test.strip() == "":
-                    processpath_to_test = default_webservice_path
-                if self.__is_folder(processpath_to_test):
-                    processpath_to_test += ("" if processpath_to_test.endswith("/") else "/") + self.webservice
-                    self.log("You entered a folder name. Trying to save the process in that folder: " + processpath_to_test, logging.WARNING)
-                unauthorized_to_save_msg = "Unauthorized to save. "
-                try:
-                    self.__install_webservice(processpath_to_test, unauthorized_to_save_msg,
-                                              "Your user could not create the web service backend. Please ask an administrator to"
-                                              + " create a web service from the following process: " + processpath_to_test + ". ")
-                    break
-                except ServerException as e:
-                    if str(e).startswith(unauthorized_to_save_msg):
-                        self.log("Could not save process to location: " + processpath_to_test + ". Please use a path where your user can write to.", logging.ERROR)
-                        self.log("Error: " + str(e)[len(unauthorized_to_save_msg):], logging.ERROR)
-                    else:
-                        raise e
+            
+            # first try to install into /shared folder (available since Server 9.6)
+            installed = False
+            if shared_folder_exists:
+                processpath_to_test = self.__SHARED_PROCESS_FOLDER + "/repository_api/" + self.webservice
+                # if /shared folder exists, install should succeed, nevertheless, we give the user a chance to
+                # provide a custom folder to install to if they get an unauthorized error
+                installed = self.__install_webservice(processpath_to_test)
+                if not installed:
+                    self.__print_welcome_msg()
+            if not installed:
+                default_webservice_path = "/repository_api/" + self.webservice
+                # if there is no process path specified, try to get it from user input a couple of times
+                tries = self.__PROCESS_PATH_TRIES if self.__processpath is None else 1
+                for _ in range(tries):
+                    processpath_to_test = input("Please enter full repository path for installing the process - it will be accessible by all users"
+                                            + " [" + default_webservice_path + "]: ") if self.__processpath is None else self.__processpath
+                    if processpath_to_test.strip() == "":
+                        processpath_to_test = default_webservice_path
+                    if self.__is_folder(processpath_to_test):
+                        processpath_to_test += ("" if processpath_to_test.endswith("/") else "/") + self.webservice
+                        self.log("You entered a folder name. Trying to save the process in that folder: " + processpath_to_test, logging.WARNING)
+                    if self.__install_webservice(processpath_to_test):
+                        break
             self.__processpath = processpath_to_test
             # Re-test installed service
             r = self.__send_request(partial(requests.post, post_url, json={"command": "test", "library_version": __version__}),
@@ -419,10 +503,22 @@ them access to the process created by this operation."""
             self.__send_request(partial(requests.post, post_url, json={"command": "delete_resource", "library_version": __version__, "path": path}),
                                 lambda s: "Failed to delete path \"" + path + "\", status: " + str(s))
 
-    def __install_webservice(self, path, unauthorized_to_save_msg, unauthorized_to_configure_msg):
-        self.__post_process(path, self.__WEBSERVICE_PROCESS_XML, unauthorized_to_save_msg)
-        self.__make_public(path)
-        self.__post_service(self.webservice, self.__WEBSERVICE_DESCRIPTOR_XML.replace("PROCESS_ENTRY_PATH", path), unauthorized_to_configure_msg)
+    def __install_webservice(self, path):
+        unauthorized_to_save_msg = "Unauthorized to save. "
+        try:
+            self.__post_process(path, self.__WEBSERVICE_PROCESS_XML, unauthorized_to_save_msg)
+            self.__make_public(path)
+            self.__post_service(self.webservice, self.__WEBSERVICE_DESCRIPTOR_XML.replace("PROCESS_ENTRY_PATH", path),
+                               "Your user could not create the web service backend. Please ask an administrator to"
+                                       + " create a web service from the following process: " + path + ". ")
+            return True
+        except ServerException as e:
+            if str(e).startswith(unauthorized_to_save_msg):
+                self.log("Could not save process to location: " + path + ". Please use a path where your user can write to.", logging.ERROR)
+                self.log("Error: " + str(e)[len(unauthorized_to_save_msg):], logging.ERROR)
+                return False
+            else:
+                raise e
 
     def __post_process(self, path, process, unauthorized_error_msg):
         post_url = self.server_url + "/api/rest/resources" + path
@@ -468,7 +564,9 @@ them access to the process created by this operation."""
 
     def __get_soap_client(self):
         session = requests.Session()
-        session.auth = requests.auth.HTTPBasicAuth(self.username, self.__password)
+        for k, v in self.auth_header.items():
+            session.headers[k] = v
+        session.headers["User-Agent"] = self.__user_agent
         client = zeep.Client(self.server_url + "/api/soap/RepositoryService?wsdl", transport=zeep.transports.Transport(session=session))
         return client
 
@@ -476,10 +574,12 @@ them access to the process created by this operation."""
         client.transport.session.close()
 
     def __get_headers(self):
-        return self.auth_header
+        head = self.auth_header.copy()
+        head["User-Agent"] = self.__user_agent
+        return head
 
     def __get_headers_with_content_type(self):
-        head = self.auth_header.copy()
+        head = self.__get_headers().copy()
         head['Content-Type'] = 'application/vnd.rapidminer.rmp+xml'
         return head
 

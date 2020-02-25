@@ -35,13 +35,35 @@ def find_version(*file_paths):
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
 
+version = find_version(name, "__init__.py")
+readme = ""
+try:
+    readme = read("..", "..", "..", "..", "README.md")
+except FileNotFoundError:
+    try:
+        # different repositories may have at a different path
+        readme = read("README.md")
+    except FileNotFoundError:
+        # ignore
+        pass
+
+# Replaces links to other markdown files with github links to make them work on PyPi
+github_baseurl = "https://github.com/rapidminer/python-rapidminer/blob/" + version + "/"
+for cname in "Studio.md", "Server.md", "Scoring.md":
+    readme = readme.replace("docs/api/" + cname, github_baseurl + "docs/api/" + cname)
+for pyname in "studio_examples.ipynb", "server_examples.ipynb":
+    readme = readme.replace("examples/" + pyname, github_baseurl + "examples/" + pyname)
+    
 setup(name=name,
-      version=find_version(name, "__init__.py"),
+      version=version,
       description='Tools for running RapidMiner processes and managing RapidMiner repositories.',
-      url='https://rapidminer.com',
-      author='RapidMiner GmbH',
+      url='https://github.com/rapidminer/python-rapidminer',
+      author='RapidMiner',
       license='AGPL',
+      long_description=readme,
+      long_description_content_type="text/markdown",
       packages=find_packages(),
+      include_package_data=True,
       zip_safe=False,
       install_requires=requirements,
       python_requires='>=3')

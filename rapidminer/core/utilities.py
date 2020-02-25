@@ -16,6 +16,7 @@
 #
 import os
 import sys
+import pkgutil
 
 if sys.version_info.major > 2:
     def __open__(file, mode):
@@ -67,6 +68,13 @@ def extract_json(res):
                 str = "Unkown error: " + str(response)
             raise ServerException(str)
     return response
+
+
+def put_docker_notebook_start(path):
+    data = pkgutil.get_data(__name__, "notebooks/server_docker_start.ipynb")
+    with open(path, "wb") as outf:
+        outf.write(data)
+
 
 class Version:
     def __init__(self, version):

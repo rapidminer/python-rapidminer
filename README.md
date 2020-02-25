@@ -14,16 +14,15 @@ This Python package allows you to interact with RapidMiner Studio and Server. Yo
 
 ## Requirements
 
-* RapidMiner Studio *9.5.0* for Studio class
-* RapidMiner Server *9.5.0* for Server class
-* Python Scripting extension *9.5.0* installed for both Studio and Server, download it from the [Marketplace](https://marketplace.rapidminer.com/UpdateServer/faces/product_details.xhtml?productId=rmx_python_scripting)
+* RapidMiner Studio *9.5.0* or later for Studio class
+* RapidMiner Server *9.5.0* or later for Server class
+* Python Scripting extension *9.6.0* or later installed for both Studio and Server, download it from the [Marketplace](https://marketplace.rapidminer.com/UpdateServer/faces/product_details.xhtml?productId=rmx_python_scripting)
 
 ## Known current limitations
 
 * Python version: 
   * Extensive tests were only carried out using *Python 3.7*, but earlier versions are expected to work as well.
-  * Python 2 is currently not supported.
-* Server read and write methods can only handle data currently, Studio read and write methods can handle other objects as well.
+  * Python 2 is not supported.
 * Studio and Server processes guarantee reproducibility. That means you should always get the same result after a version update. The same feature *cannot be guaranteed* when using this Python library (the library depends on other libraries that our not in our control).
 * Server with [SAML authentication](https://redirects.rapidminer.com/web/saml-authentication) is not yet supported.
 
@@ -42,13 +41,13 @@ Server class connects directly to a Server instance without the need of a Studio
 
 ## Installation
 
-The library can be installed from this repository:
+The library can be installed easily:
 
 - install in one step:
 
-        $ pip install git+https://github.com/rapidminer/python-rapidminer.git
+        $ pip install rapidminer
 
-- or clone and install:
+- or clone the repository and install:
 
         $ git clone https://github.com/rapidminer/python-rapidminer.git
         $ cd python-rapidminer
@@ -106,16 +105,11 @@ With `Server` class, you can directly connect to a local or remote Server instan
 
 ### Installation of Server API
 
-The `Server` class requires a web service backend to be installed on RapidMiner Server. This is done automatically on the first instantiation of the Server class. However, in most cases, you need to create the repository folder for it manually. *Note that if you are the sole user of the Server instance or this Server API now and in the future, you can skip the steps below. Create a `Server` class from Python with the proper url. When you are asked for the repository path of the backend, just choose `/home/myrmuser/` as the target path.*
+The `Server` class requires a web service backend to be installed on RapidMiner Server. This is done automatically on the first instantiation of the Server class. The repository folder `/shared` is used by default to store the backend process. This folder exists and is accessible by anyone starting from RapidMiner Server 9.6.0.
 
-Please follow the steps below to install Server API backend. These steps are needed to be done only once. You can use RapidMiner Studio or the RapidMiner Server web UI. See screenshots for performing the steps below [from Studio](docs/install/ServerInstallFromStudio.md) or [from Server web UI](docs/install/ServerInstallFromServerUI.md).
-1. Create a Server Repository folder (e.g. `repository_api` in the root folder).
-1. Give **read**, **write**, **execute** permissions to the **users** group on this folder.
-1. Specify this folder when you instantiate `Server` class from Python for the first time and it asks for the repository path.
+`Server` class instantiation can be fully automated (thus, no need for user input), if you specify `url`, `username` and `password` parameters.
 
-The very first `Server` class instantiation can also be fully automated (thus, need for user input avoided), if you specify this repository path in the `processpath` parameter besides setting `url`, `username` and `password`.
-
-On the RapidMiner Server web UI you can see the installed web service (*Processes*->*Web Services*). It has the name *Repository Service* by default, but you can change that with the optional parameter of `Server` class named `webservice`. If the web service is deleted, the next `Server` instantiation will re-create it.
+On the RapidMiner Server web UI you can see the installed web service backend (*Processes*->*Web Services*). It has the name *Repository Service* by default, but you can change that with the optional parameter of `Server` class named `webservice`. You can change the process path location by setting 'processpath', but you need to make sure that it will be executable by all users of the Server API. If the web service is deleted, the next `Server` instantiation will re-create it.
 
 ### Usage of Server API
 

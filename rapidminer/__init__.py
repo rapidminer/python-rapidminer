@@ -15,10 +15,11 @@
 # If not, see https://www.gnu.org/licenses/.
 #
 
-__version__ = "9.5.0.0"
+__version__ = "9.6.0.0"
 
 from .core.studio import Studio
 from .core.server import Server
+from .core.server import get_server
 from .core.scoring import Scoring
 from .core.resources import File
 from .core.resources import RepositoryLocation

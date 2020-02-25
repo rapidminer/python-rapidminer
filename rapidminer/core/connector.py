@@ -100,15 +100,6 @@ class Connector(object):
         """
         raise NotImplementedError("Method not implemented in base class.")
 
-    def _suppress_pandas_warning(self, f):
-        try:
-            import warnings
-        except:
-            f()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            f()
-
     def _can_convert_to_str(self, value):
         """
         Tests, if the given value can be converted to a string representation.

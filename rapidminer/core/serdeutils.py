@@ -19,7 +19,7 @@ import json
 import sys
 import numpy as np
 import base64
-import datetime
+import warnings
 
 try:
     from .. import __version__
@@ -78,6 +78,15 @@ else:
     b64encode = __b64encode_python2
     b64decode = __b64decode_python2
 
+def is_file_object(entry):
+    try:
+        if entry.closed:
+            open(entry)
+            close(entry)
+        return True
+    except Exception:
+        return False
+
 # writes string to error file
 def write_to_error_log(full_message):
     with open_file("rapidminer_error.log", "w") as error_file:
@@ -102,7 +111,7 @@ def transform_metadata(list):
 # reads the example set from the files into a pandas.DataFrame.
 def read_example_set(input_csv, input_pmd):
     def read_date(epoch):
-        if epoch != "null" and epoch is not pandas.np.nan and epoch == epoch:
+        if epoch != "null" and epoch is not np.nan and epoch == epoch:
             # because of some older pandas versions, we need to read in "ns"
             return pandas.to_datetime(int(epoch)*1000, unit='ns')
         else:
@@ -135,13 +144,20 @@ def read_example_set(input_csv, input_pmd):
         rename_map[index] = attr
         index = index + 1
     # data
-    df = pandas.read_csv(input_csv,
-                         dtype=dtype,
-                         encoding="utf-8",
-                         header=None,
-                         converters=conv,
-                         parse_dates=date_cols,
-                         date_parser=lambda epoch: read_date(epoch))
+    with warnings.catch_warnings():
+        # potential irrelevant warnings on nominal columns
+        try:
+            warnings.simplefilter("ignore", pandas.errors.DtypeWarning)
+        except:
+            # older Pandas version does not have pandas.errors
+            pass
+        df = pandas.read_csv(input_csv,
+                                 dtype=dtype,
+                                 encoding="utf-8",
+                                 header=None,
+                                 converters=conv,
+                                 parse_dates=date_cols,
+                                 date_parser=lambda epoch: read_date(epoch))
     df.rename(columns=rename_map, inplace=True)
     set_metadata_without_warning(df, transform_metadata(metadata))
     return df
@@ -151,7 +167,7 @@ def read_example_set(input_csv, input_pmd):
 def get_metadata(data, original_names):
     metadata = []
 
-    #check if rm_metadata attribute is present and a dictionary
+    # check if rm_metadata attribute is present and a dictionary
     try:
         if hasattr(data, "rm_metadata") and isinstance(data.rm_metadata,dict):
             meta_isdict = True
@@ -244,16 +260,16 @@ def rename_columns(dataframe):
     return original_names
 
 # base64 encode all nominals and convert dates to epoch
-__converted_dataframes__=[]
 def convert_to_output_format(df, metadata):
     def b64(x):
-        if pandas.isnull(x):
-            return "null"
-        elif isinstance(x, basestring) and len(x) > 0:
+        if isinstance(x, basestring):
             return b64encode(x)
+        # avoid lists, numpy array, etc. in isnull check
+        elif not hasattr(x, "__len__") and pandas.isnull(x):
+            return "null"
         return b64encode(str(x))
 
-    if (id(df) in __converted_dataframes__):
+    if (hasattr(df, "rm_converted_for_writing")) and df.rm_converted_for_writing:
         return
 
     for m in metadata:
@@ -261,7 +277,7 @@ def convert_to_output_format(df, metadata):
         for name in m:
             meta_type = m[name][0]
             if __date_meta_type(meta_type):
-                index = pandas.np.logical_not(df[name].isnull())
+                index = np.logical_not(df[name].isnull())
                 if not any(index):
                     # we have only null values
                     continue
@@ -290,7 +306,7 @@ def convert_to_output_format(df, metadata):
                     raise DateConversionError("Error while serializing dataframe: some values in column '" + str(name) + "' are not valid dates.")
             elif __nominal_meta_type(meta_type):
                 df[name] = df[name].apply(b64)
-    __converted_dataframes__.append(id(df))
+    df.rm_converted_for_writing = True
 
 # writes the data and metadata to files
 # SIDE EFFECT: the method may modify the original data
@@ -309,12 +325,8 @@ def write_example_set(data, output_csv, output_pmd):
     data.to_csv(output_csv, encoding="utf-8", header=False, index=False)
 
 def set_metadata_without_warning(df, metadata):
-    try:
-        import warnings
-    except:
-        df.rm_metadata = metadata
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
+        warnings.simplefilter("ignore", UserWarning)
         df.rm_metadata = metadata
 
 # based on Ontology
