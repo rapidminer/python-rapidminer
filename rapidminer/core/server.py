@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2019 RapidMiner GmbH
+# Copyright (C) 2018-2020 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -31,8 +31,9 @@ from .utilities import GeneralException
 from .utilities import extract_json
 from .utilities import Version
 from .utilities import VersionException
-from .resources import RepositoryLocation
+from .resources import RepositoryLocation, ProjectLocation
 from .serdeutils import read_example_set, write_example_set, is_file_object
+from .project import Project
 from functools import partial
 import warnings
 import io
@@ -42,11 +43,13 @@ import zeep
 import os
 import sys
 import json
+import re
+from pathlib import Path
 
 from .. import __version__
 
 def get_server():
-    if "RM_SERVER_JSESSIONID" in os.environ:
+    if _is_docker_based_deployment():
         default_url = "http://rm-server-svc:8080"
         if "SERVER_BASE_URL" in os.environ:
             default_url = os.environ["SERVER_BASE_URL"]
@@ -116,17 +119,17 @@ them access to the process created by this operation."""
                  webservice="Repository Service", processpath=None, tempfolder=None, install=True, verifySSL=True,
                  logger=None, loglevel=logging.INFO):
         """
-        Initializes a new connector to a local or remote Rapidminer Server instance. It also installs the auxiliary webservice required by this library to be able to interact with the Server repository directly.
+        Initializes a new connector to a local or remote Rapidminer Server instance. It also installs the auxiliary web service required by this library to be able to interact with the Server repository directly.
 
         Arguments:
         :param url: Server url path (hostname and port as well)
         :param username: user to use Server with
         :param password: password for the username. If not provided, you will need to enter it.
         :param size_limit_kb: maximum number of kilobytes that are allowed to be read from or writing to Server. Reading or writing large objects may degrade Server's performance or lead to out of memory errors. Default value is 50000.
-        :param webservice: this API requires an auxiliary process installed as a webservice on the Server instance. This parameter specifies the name for this webservice. The webservice is automatically installed if it has not been.
-        :param processpath: path in the repository where the process behind the webservice will be saved. If not specified, a user prompt asks for the path, but proposes a default value. Note that you may want to make this process executable for all users.
+        :param webservice: this API requires an auxiliary process installed as a web service on the Server instance. This parameter specifies the name for this web service. The web service is automatically installed if it has not been.
+        :param processpath: path in the repository where the process behind the web service will be saved. If not specified, a user prompt asks for the path, but proposes a default value. Note that you may want to make this process executable for all users.
         :param tempfolder: repository folder on Server that can be used for storing temporary objects by run_process method. Default value is "tmp" inside the user home folder. Note that in case of certain failures, you may need to delete remaining temporary objects from this folder manually.
-        :param install: boolean. If set to false, webservice installation step is completely skipped. Default value is True.
+        :param install: boolean. If set to false, web service installation step is completely skipped. Default value is True.
         :param verifySSL: either a boolean, in which case it controls whether we verify the server's TLS certificate, or a string, in which case it must be a path to a CA bundle to use. Default value is True.
         :param logger: a Logger object to use. By default a very simple logger is used, with INFO level, logging to stdout.
         :param loglevel: the loglevel, as an int value. Common values are defined in the standard logging module. Only used, if logger is not defined.
@@ -134,7 +137,7 @@ them access to the process created by this operation."""
         super(Server, self).__init__(logger, loglevel)
         # URL of the Rapidminer Server
         self.server_url = url
-        if self.__rm_server_jsessionid() is None:
+        if not _is_docker_based_deployment():
             # RapidMiner Server Username
             if username is None:
                 username = input('Username: ')
@@ -169,13 +172,14 @@ them access to the process created by this operation."""
 # Public functions #
 ####################
 
-    def read_resource(self, path):
+    def read_resource(self, path, project=None):
         """
         Reads one or more resources from the specified Server repository locations. Does not allow the retrieval of objects larger than the limit settings allow (size_limit_kb, limit in kilobytes).
 
         Arguments:
-        :param path: the path(s) to the resource(s) inside Server repository. Multiple paths can be specified as list or tuple. A path can be a string or a rapidminer.RepositoryLocation object.
-        :return: the resource(s) as a pandas DataFrame(s). If multiple inputs are specified, the same number of inputs will be returned, as tuple of DataFrame objects. Otherwise, the return value is a single DataFrame.
+        :param path: the path(s) to the resource(s) inside Server repository. Multiple paths can be specified as list or tuple. A path can be a string, a rapidminer.RepositoryLocation or a rapidminer.ProjectLocation object.
+        :param project: optional project name. If this argument is defined, the specified paths are resolved in this project. If rapidminer.ProjectLocation objects are specified in the first argument, their project settings override the project set by this argument.
+        :return: the requested resource(s). Datasets are returned as pandas DataFrames. Python native objects are returned as Python objects, other object types may be returned as bytes or BytesIO. If multiple inputs are specified, the same number of inputs will be returned in a tuple. Otherwise, the return value is a single object.
          """
         if not ((isinstance(path, tuple) or isinstance(path, list))):
             path = [path]
@@ -186,45 +190,18 @@ them access to the process created by this operation."""
             single_input = False
         resources = []
         for inp in path:
+            this_project = project
             if isinstance(inp, RepositoryLocation):
                 inp = inp.to_string(with_prefix=False)
+            elif isinstance(inp, ProjectLocation):
+                this_project = inp.project
+                inp = inp.path
             elif not isinstance(inp, str):
                 raise ServerException("Input path should be 'str' or 'rapidminer.RepositoryLocation object, not '" + str(type(inp)) + "'.")
-            post_url = self.server_url + "/api/rest/process/" + self.webservice + "?"
-            r = self.__send_request(partial(requests.post, post_url, json={"command": "read_resource", "library_version": __version__, "path": inp, "size_limit_kb": self.size_limit_kb}),
-                                    lambda s: "Failed to read input \"" + inp + "\", status: " + str(s) 
-                                    + (". The web service backend may have been deleted, please try to use a new Server class." if s == 404 else ""))
-            response = extract_json(r)
-            self.__check_extension_version(response, typeColumn="extension", valueColumn="content")
-            if not isinstance(response, list) or len(response) not in [1,2,3]:
-                raise ServerException("Invalid response from server: " + response)
-            csv_data = None
-            metadata = None
-            for row in response:
-                try:
-                    ext = row["extension"]
-                    content = row["content"]
-                    if ext == "csv-encoded":
-                        csv_data = io.StringIO(content)
-                    elif ext == "pmd-encoded":
-                        metadata = io.StringIO(content)
-                    elif ext == "bin":
-                        try:
-                            obj = pickle.load(io.BytesIO(base64.b64decode(content)))
-                        except Exception as exc:
-                            raise GeneralException("Error while trying to load pickled object (note that Python 2 objects may not be readable): " + str(exc))
-                        resources.append(obj)
-                    elif ext == 'fo':
-                        resources.append(io.BytesIO(base64.b64decode(content.encode("utf-8")))) # reads the file to memory
-                except KeyError as e:
-                    raise ServerException("The response from the server differs from the expected.") from e
-            if csv_data is not None:
-                if metadata is None:
-                    raise ServerException("No metadata found.")
-                dataframe = read_example_set(csv_data, metadata)
-                resources.append(dataframe)
-            if metadata is not None and csv_data is None:
-                raise ServerException("No data found.")
+            if this_project:
+                resources.append(self.__read_project(this_project, inp))
+            else:
+                resources.append(self.__read_repository(inp))
         if single_input:
             return resources[0]
         else:
@@ -274,7 +251,7 @@ them access to the process created by this operation."""
             response = extract_json(r)
             self.__check_extension_version(response)
 
-    def run_process(self, path, inputs=[], macros={}, queue="DEFAULT", ignore_cleanup_errors=True):
+    def run_process(self, path, inputs=[], macros={}, queue="DEFAULT", ignore_cleanup_errors=True, project=None):
         """
         Runs a RapidMiner process and returns the result(s).
 
@@ -284,33 +261,47 @@ them access to the process created by this operation."""
         :param macros: optional dict that sets the macros in the process context according to the key-value pairs, e.g. macros={"macro1": "value1", "macro2": "value2"}
         :param queue: the name of the queue to submit the process to. Default is DEFAULT.
         :param ignore_cleanup_errors: boolean. Determines if any error during temporary data cleanup should be ignored or not. Default value is True.
-        :return: the results of the RapidMiner process. It can be None, or a single object, or a tuple. One result may be a pandas DataFrame, a pickle-able python object or a file-like object.
+        :param project: optional project name. If this argument is defined, the specified paths are resolved in this project. If rapidminer.ProjectLocation objects are specified in the first argument, their project settings override the project set by this argument. Note that when using projects, the inputs parameter is ignored, as direct write is not supported for versioned projects. Also, the method does not return outputs in this case.
+        :return: the results of the RapidMiner process. It can be None, or a single object, or a tuple. One result may be a pandas DataFrame, a pickle-able Python object or a file-like object. When a project is used, no output is returned, as that would need direct write to a versioned project that is not supported.
         """
+        this_project = project
         if isinstance(path, RepositoryLocation):
             path = path.to_string(with_prefix=False)
+        elif isinstance(path, ProjectLocation):
+            this_project = path.project
+            path = path.path
         elif not isinstance(path, str):
             raise ServerException("Process path should be 'str' or 'rapidminer.RepositoryLocation object, not '" + str(type(path)) + "'.")
         if inputs is not None and not ((isinstance(inputs, tuple) or isinstance(inputs, list))):
             inputs = [inputs]
-        process_xml = self.__read_process_xml(path)
+        if this_project:
+            process_xml = self.__read_process_from_project(this_project, path)
+            # location will not be submitted
+            path = ProjectLocation(this_project, path).to_string()
+        else:
+            process_xml = self.__read_process_xml(path)
         root = et.fromstring(process_xml)
         temp_resources = []
         context = {}
         try:
-            if inputs:
-                input_resources = [self.__tempfolder + next(tempfile._get_candidate_names()) for _ in inputs]
-                temp_resources += input_resources
-                self.write_resource(inputs, input_resources)
-                # add input locations in process xml
-                context["inputLocations"] = input_resources
-            # find connected output ports, add locations to process xml
-            output_resources = []
-            for wire in root.find('operator').find('process').findall('connect'):
-                if wire.attrib['to_port'].startswith('result '):
-                    output_resources.append(self.__tempfolder + next(tempfile._get_candidate_names()))
-            if output_resources:
-                context["outputLocations"] = output_resources
-            temp_resources += output_resources
+            if this_project:
+                if inputs:
+                    print("When running a process from a project, inputs cannot be specified.")
+            else:
+                if inputs:
+                    input_resources = [self.__tempfolder + next(tempfile._get_candidate_names()) for _ in inputs]
+                    temp_resources += input_resources
+                    self.write_resource(inputs, input_resources)
+                    # add input locations in process xml
+                    context["inputLocations"] = input_resources
+                # find connected output ports, add locations to process xml
+                output_resources = []
+                for wire in root.find('operator').find('process').findall('connect'):
+                    if wire.attrib['to_port'].startswith('result '):
+                        output_resources.append(self.__tempfolder + next(tempfile._get_candidate_names()))
+                if output_resources:
+                    context["outputLocations"] = output_resources
+                temp_resources += output_resources
             # set macros in process xml
             if macros:
                 macros_dict = {}
@@ -321,9 +312,12 @@ them access to the process created by this operation."""
             jobid = r.json()["id"]
             self.log("Submitted process with job id: " + str(jobid))
             self.__wait_for_job(jobid)
-            if len(output_resources) == 1:
-                output_resources = output_resources[0]
-            return self.read_resource(output_resources)
+            if this_project:
+                return None
+            else:
+                if len(output_resources) == 1:
+                    output_resources = output_resources[0]
+                return self.read_resource(output_resources)
         finally:
             if ignore_cleanup_errors:
                 try:
@@ -347,12 +341,24 @@ them access to the process created by this operation."""
                                 lambda s: "Failed to get queues, status: " + str(s))
         return r.json()
 
+    def get_projects(self):
+        """
+        Gets information of the available projects in the Server instance.
+
+        :return: a JSON array of objects representing each repository with its properties
+        """
+        get_url = self.server_url + "/executions/repositories?"
+        r = self.__send_request(partial(requests.get, get_url),
+                                lambda s: "Failed to get projects, status: " + str(s))
+        return r.json()
+        
+        
 #####################
 # Private functions #
 #####################
 
     def __username(self):
-        if "RM_SERVER_JSESSIONID" in os.environ:
+        if _is_docker_based_deployment():
             if "JUPYTERHUB_USER" in os.environ:
                 return os.environ["JUPYTERHUB_USER"]
             else:
@@ -360,27 +366,16 @@ them access to the process created by this operation."""
         else:
             return self.username
 
-    def __rm_server_jsessionid(self):
-        if "RM_SERVER_JSESSIONID" in os.environ:
-            return os.environ["RM_SERVER_JSESSIONID"]
-        else:
-            return None
+    def __connect_idp(self):
+        api_token = os.getenv('JUPYTERHUB_API_TOKEN')
+        api_url = os.getenv('JUPYTERHUB_API_URL')
+        api_url = re.sub(r"(https?:/)",r"\g<1>/", re.sub("//*", "/", api_url + '/whoami'))
 
-    def __connect_rm_server_jsessionid(self, rm_server_jsessionid):
-        cookies = {
-            "Cookie": "RM_SERVER_JSESSIONID=" + rm_server_jsessionid
-        }
-        r = self.__send_request(partial(requests.get, url=self.server_url + '/internal/jaxrest/tokenservice',
-                                       allow_redirects=False),
-                                error_fn=lambda s:
-                                "Connection error, status: " + str(s) + ".",
-                                reconnect=False, headers_fn=lambda: cookies)
-        rt = json.loads(r.text)
-        if "Access denied" in rt:
-            raise ServerException("Connection error: Access denied")
-
-        # JWT idToken for the RM Server
-        return rt['idToken']
+        self.log("Getting up-to-date access token from: " + api_url, level=logging.DEBUG)
+        r = requests.get(api_url, headers={'Authorization': 'token %s' % api_token})
+        r.raise_for_status()
+        rms_jwt=r.json()['auth_state']['rms_jwt_idToken']
+        return rms_jwt
 
     def __connect_basic_auth_header(self):
         # Encode the basic Authorization header
@@ -399,8 +394,8 @@ them access to the process created by this operation."""
         return r.json()['idToken']
 
     def __connect(self):
-        if self.__rm_server_jsessionid() is not None:
-            jwt=self.__connect_rm_server_jsessionid(self.__rm_server_jsessionid())
+        if _is_docker_based_deployment():
+            jwt=self.__connect_idp()
         else:
             jwt=self.__connect_basic_auth_header()
         # Bearer Authorization header
@@ -408,7 +403,7 @@ them access to the process created by this operation."""
         self.log("Successfully connected to the Server")
 
     def __print_welcome_msg(self):
-        # text displayed to explain why the user needs to choose a path where the webservice process is installed to
+        # text displayed to explain why the user needs to choose a path where the web service process is installed to
         print(self.__TAB + ("*" * self.__WELCOME_LINE_LENGTH))
         print(self.__TAB + ("\n" + self.__TAB).join(textwrap.wrap(self.__WELCOME_INFO, self.__WELCOME_LINE_LENGTH)))
         print(self.__TAB + ("*" * self.__WELCOME_LINE_LENGTH))
@@ -548,8 +543,10 @@ them access to the process created by this operation."""
         post_url = self.server_url + "/api/rest/service/" + service_name
         return self.__send_request(partial(requests.post, post_url, data=descriptor),
                                    error_fn=lambda s:
-                                       (unauthorized_error_msg if s == 403 else "")
-                                       + "Failed to install webservice with the name '" + service_name + "', status: " + str(s))
+                                       "Failed to install web service with the name '" + service_name + "', status: " + str(s) + "." +
+                                       (" Reason: " if s in [403,500] else "") +
+                                       (unauthorized_error_msg if s == 403 else "") +
+                                       ("Internal server error. You may not have sufficient privileges to complete this action. Ask an administrator to install the web service." if s == 500 else ""))
 
     def __is_folder(self, path):
         client = self.__get_soap_client()
@@ -625,4 +622,78 @@ them access to the process created by this operation."""
         if extensionVersion is None or not Version(extensionVersion).is_at_least(Version("9.5.0")):
             raise VersionException("RapidMiner Server", "to 9.5.0 or newer")
 
+    def __read_project(self, project, path):
+        get_url = self.server_url + "/executions/repositories/" + project + "/resources/master/" + path
+        try:
+            r = self.__send_request(partial(requests.get, get_url),
+                lambda s: "Failed to get resource " + project + "/" + path + ", status: " + str(s))
+        except ServerException as e:
+            # re-try with our hdf5 file extension if it has not been specified
+            if str(e).endswith("404") and len(Path(path).suffix) == 0:
+                r = self.__send_request(partial(requests.get, get_url + Project._RM_HDF5_EXTENSION),
+                    lambda s: "Failed to get resource " + project + "/" + path + ", status: " + str(s))
+            else:
+                raise e
+        if path.endswith(Project._RM_HDF5_EXTENSION):
+            return Project().read(io.BytesIO(r.content))
+        elif len(Path(path).suffix) == 0:
+            try:
+                return Project().read(io.BytesIO(r.content))
+            except OSError as e:
+                # most likely not a hdf5 file
+                pass
+        return r.content
 
+    def __read_repository(self, path):
+        post_url = self.server_url + "/api/rest/process/" + self.webservice + "?"
+        r = self.__send_request(partial(requests.post, post_url, json={"command": "read_resource", "library_version": __version__, "path": path, "size_limit_kb": self.size_limit_kb}),
+                                lambda s: "Failed to read input \"" + path + "\", status: " + str(s) 
+                                + (". The web service backend may have been deleted, please try to use a new Server class." if s == 404 else ""))
+        response = extract_json(r)
+        self.__check_extension_version(response, typeColumn="extension", valueColumn="content")
+        if not isinstance(response, list) or len(response) not in [1,2,3]:
+            raise ServerException("Invalid response from server: " + response)
+        csv_data = None
+        metadata = None
+        for row in response:
+            try:
+                ext = row["extension"]
+                content = row["content"]
+                if ext == "csv-encoded":
+                    csv_data = io.StringIO(content)
+                elif ext == "pmd-encoded":
+                    metadata = io.StringIO(content)
+                elif ext == "bin":
+                    try:
+                        obj = pickle.load(io.BytesIO(base64.b64decode(content)))
+                    except Exception as exc:
+                        raise GeneralException("Error while trying to load pickled object (note that Python 2 objects may not be readable): " + str(exc))
+                    resources.append(obj)
+                elif ext == 'fo':
+                    return io.BytesIO(base64.b64decode(content.encode("utf-8"))) # reads the file to memory
+            except KeyError as e:
+                raise ServerException("The response from the server differs from the expected.") from e
+        if csv_data is not None:
+            if metadata is None:
+                raise ServerException("No metadata found.")
+            dataframe = read_example_set(csv_data, metadata)
+            return dataframe
+        if metadata is not None and csv_data is None:
+            raise ServerException("No data found.")
+
+    def __read_process_from_project(self, project, path):
+        get_url = self.server_url + "/executions/repositories/" + project + "/resources/master/" + path
+        try:
+            r = self.__send_request(partial(requests.get, get_url),
+                lambda s: "Failed to find process at " + project + "/" + path + ", status: " + str(s))
+        except ServerException as e:
+            # re-try with rmp file extension if it has not been specified
+            if str(e).endswith("404") and len(Path(path).suffix) == 0:
+                r = self.__send_request(partial(requests.get, get_url + Project._RM_RMP_EXTENSION),
+                                        lambda s: "Failed to find process at " + project + "/" + path + ", status: " + str(s))
+            else:
+                raise e
+        return r.text
+
+def _is_docker_based_deployment():
+    return all([var in os.environ for var in ["JUPYTERHUB_API_TOKEN", "JUPYTERHUB_API_URL", "JUPYTERHUB_USER"]])

@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2019 RapidMiner GmbH
+# Copyright (C) 2018-2020 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -19,7 +19,7 @@ import os
 import codecs
 import re
 
-requirements = ["pandas", "requests", "numpy", "zeep"]
+requirements = ["pandas", "requests", "numpy", "zeep", "h5py"]
 name = "rapidminer"
 here = os.path.abspath(os.path.dirname(__file__))
 

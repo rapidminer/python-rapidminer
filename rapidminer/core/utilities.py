@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2019 RapidMiner GmbH
+# Copyright (C) 2018-2020 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -33,15 +33,27 @@ class GeneralException(Exception):
     General exception class to errors related to the rapidminer package.
     """
     def __init__(self, msg=""):
-        super(Exception, self).__init__(msg)
+        super(GeneralException, self).__init__(msg)
 
 class ServerException(Exception):
     def __init__(self, msg=""):
-        super(Exception, self).__init__(msg)
+        super(ServerException, self).__init__(msg)
+
+class ProjectException(Exception):
+    def __init__(self, msg=""):
+        super(ProjectException, self).__init__(msg)
+
+class TooManyBinomialValuesError(ProjectException):
+    def __init__(self, msg=""):
+        super(TooManyBinomialValuesError, self).__init__(msg)
+
+class ValueConversionError(ProjectException):
+    def __init__(self, msg=""):
+        super(ValueConversionError, self).__init__(msg)
 
 class VersionException(Exception):
     def __init__(self, product, upgrade_to):
-        super(Exception, self).__init__("You are using an older version of Python Scripting Extension in " 
+        super(VersionException, self).__init__("You are using an older version of Python Scripting Extension in "
                                         + product + ". Upgrade to "
                                         + upgrade_to + " version to use this version of the package.")
 

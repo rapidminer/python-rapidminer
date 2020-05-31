@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2019 RapidMiner GmbH
+# Copyright (C) 2018-2020 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -356,7 +356,7 @@ class Studio(Connector):
                 self.__start_printer_thread(p)
                 p.wait()
                 if not threadid in self.__rapidminer_version or not Version(self.__rapidminer_version[threadid]).is_at_least(Version("9.5.0")):
-                    raise VersionException("RapidMiner Studio", "to 9.5.0 or newer")
+                    raise VersionException("RapidMiner Studio", "9.5.0 or newer")
                 if not threadid in self.__last_exit_code__ or self.__last_exit_code__[threadid] != 0:
                     if threadid in self.__last_exception_msg__:
                         raise StudioException("Error while executing studio: " + self.__last_exception_msg__[threadid])

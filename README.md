@@ -1,6 +1,6 @@
 # RapidMiner Python package
 
-This Python package allows you to interact with RapidMiner Studio and Server. You can collaborate using the RapidMiner repository and leverage the scalable Server infrastructure to run processes. This document shows examples on how to use the package. Additional notebook files provide more advanced examples. There is an API document for each classes: [Studio](docs/api/Studio.md), [Server](docs/api/Server.md), [Scoring](docs/api/Scoring.md).
+This Python package allows you to interact with RapidMiner Studio and AI Hub. You can collaborate using the RapidMiner repository and leverage the scalable RapidMiner AI Hub infrastructure to run processes. This document shows examples on how to use the package. Additional notebook files provide more advanced examples. There is an API document for each classes: [Project](docs/api/Project.md), [Studio](docs/api/Studio.md), [Server](docs/api/Server.md), [Scoring](docs/api/Scoring.md).
 
 ## Table of contents
 
@@ -8,36 +8,40 @@ This Python package allows you to interact with RapidMiner Studio and Server. Yo
 - [Known current limitations](#known-current-limitations)
 - [Overview](#requirements)
 - [Installation](#installation)
+- [Project](#project)
 - [Studio](#studio)
 - [Server](#server)
 - [Scoring](#scoring)
 
 ## Requirements
 
-* RapidMiner Studio *9.5.0* or later for Studio class
-* RapidMiner Server *9.5.0* or later for Server class
-* Python Scripting extension *9.6.0* or later installed for both Studio and Server, download it from the [Marketplace](https://marketplace.rapidminer.com/UpdateServer/faces/product_details.xhtml?productId=rmx_python_scripting)
+* RapidMiner Studio *9.7.0* for Studio class
+* RapidMiner AI Hub *9.7.0* for Server class
+* Python Scripting extension *9.6.0* or later installed for both Studio and RapidMiner AI Hub, download it from the [Marketplace](https://marketplace.rapidminer.com/UpdateServer/faces/product_details.xhtml?productId=rmx_python_scripting)
 
 ## Known current limitations
 
 * Python version: 
   * Extensive tests were only carried out using *Python 3.7*, but earlier versions are expected to work as well.
   * Python 2 is not supported.
-* Studio and Server processes guarantee reproducibility. That means you should always get the same result after a version update. The same feature *cannot be guaranteed* when using this Python library (the library depends on other libraries that our not in our control).
-* Server with [SAML authentication](https://redirects.rapidminer.com/web/saml-authentication) is not yet supported.
+* RapidMiner Studio and AI Hub processes guarantee reproducibility. That means you should always get the same result after a version update. The same feature *cannot be guaranteed* when using this Python library (the library depends on other libraries that are not in our control).
+* RapidMiner AI Hub with [SAML authentication](https://redirects.rapidminer.com/web/saml-authentication) is not supported.
 
 ## Overview
 
-Both Studio and Server classes provide a read and a write method for reading / writing data and other objects, and a run method to run processes. The method signatures are the same, with somewhat different extra parameters.
+Both Studio and Server classes provide a read and a write method for reading / writing data and other objects, and a run method to run processes. The method signatures are the same, with somewhat different extra parameters. To work with versioned projects, a feature that arrives with RapidMiner AI Hub 9.7.0, use the Project class that provides read and write methods to the data file format used in them.
 
 Studio class requires a local Studio installation and is suitable in the following cases:
 * Implementing certain data science steps in Python using your favorite IDE or notebook implementation. You may even use the resulting code afterwards in a RapidMiner process within an *Execute Python* operator.
 * You are using coding primarily, but you want to incorporate methods that are impemented in a RapidMiner process.
 * Creating batch tasks that also interact with the repository and / or run processes.
 
-Server class connects directly to a Server instance without the need of a Studio installation. It is suitable in the following cases:
+Server class connects directly to a RapidMiner AI Hub instance without the need of a Studio installation. It is suitable in the following cases:
 * Collaborating with RapidMiner users, sharing data easily.
-* Calling, running, scheduling processes on the RapidMiner Server platform from a local script.
+* Calling, running, scheduling processes on the RapidMiner AI Hub platform from a local script.
+
+Project class is required to work with the git-based versioned repositories called projects. Projects can be shared using RapidMiner AI Hub. The shared data format allows Python coders and RapidMiner users to easily work on the same data. To summarize, this class is suitable in the following cases:
+* Using versioned projects to collaborate with RapidMiner users and share data easily.
 
 ## Installation
 
@@ -53,6 +57,41 @@ The library can be installed easily:
         $ cd python-rapidminer
         $ python setup.py install
 
+## Project
+
+Projects are a new feature of RapidMiner AI Hub 9.7.0 that allows you to have versioned repositories as the storage layer shared between RapidMiner users and Python coders. You can use any kind of git client, e.g. git commands, to clone, checkout a repository from RapidMiner AI Hub, and push your modifications there. Use the Project class to read and write the common data file format (HDF5).
+
+Let's say you have cloned your versioned project into the local `myproject` folder using the git clone command. After that, point the Project class to this folder:
+
+```python
+import rapidminer
+project = rapidminer.Project("myproject")
+```
+
+##### Reading ExampleSet
+
+Once you have a project instance, you can read a RapidMiner ExampleSet in Python by running the following line (let's assume your data set called `mydata` is inside the `data` folder):
+
+```python
+df = project.read("data/mydata")
+```
+
+The resulting `df` is a `pandas` `DataFrame` object, which you can use in the conventional way.
+
+##### Writing ExampleSet
+
+You can save any `pandas` `DataFrame` object to a project with the following command:
+
+```python
+project.write(df, "data/mydata_modified")
+```
+
+After writing the data set to the disk, you can use git commit and push to publish your changes to the remote project.
+
+##### Running a process
+
+Use Studio or Server classes to run a process from a project, see examples below.
+
 ## Studio
 
 You need to have a locally installed RapidMiner Studio instance to use this class. The only thing you need to provide is your installation path. Once that is specified, you can read from and write data or other objects to any configured repository. You can also run processes from files or from the repository. In this section, we show you some examples on how to read and write repository data and run processes. For more advanced scenarios see the included [IPython notebook](examples/studio_examples.ipynb) and the [documentation of the `Studio` class](docs/api/Studio.md).
@@ -62,7 +101,6 @@ Note that each `Studio` method starts a Studio instance in the background and st
 First you need a `Connector` object to interact with Studio. Once you have that, you can read and write data or run a process with a single line. To create a `Studio` `Connector` object, run the following code:
 
 ```python
-import rapidminer
 connector = rapidminer.Studio("/path/to/you/studio/installation")
 ```
 
@@ -101,26 +139,25 @@ You will get the results as `pandas` `DataFrames`. You can also define inputs, a
 
 ## Server
 
-With `Server` class, you can directly connect to a local or remote Server instance without the need for any local RapidMiner (Studio) installation. You can read data from and write data to the Server repository and you can execute processes using the scalable Job Agent architecture. In this section, we show you some examples on how to read and write repository data and run processes. For more advanced scenarios see the included [IPython notebook](examples/server_examples.ipynb) and the [documentation of the `Server` class](docs/api/Server.md).
+With `Server` class, you can directly connect to a local or remote RapidMiner AI Hub instance without the need for any local RapidMiner (Studio) installation. You can read data from and write data to the remote repository and you can execute processes using the scalable Job Agent architecture. In this section, we show you some examples on how to read and write repository data and run processes. For more advanced scenarios see the included [IPython notebook](examples/server_examples.ipynb) and the [documentation of the `Server` class](docs/api/Server.md).
 
 ### Installation of Server API
 
-The `Server` class requires a web service backend to be installed on RapidMiner Server. This is done automatically on the first instantiation of the Server class. The repository folder `/shared` is used by default to store the backend process. This folder exists and is accessible by anyone starting from RapidMiner Server 9.6.0.
+The `Server` class requires a web service backend to be installed on RapidMiner AI Hub. This is done automatically on the first instantiation of the Server class. The repository folder `/shared` is used by default to store the backend process. This folder exists and is accessible by anyone starting from RapidMiner Server 9.6.0.
 
 `Server` class instantiation can be fully automated (thus, no need for user input), if you specify `url`, `username` and `password` parameters.
 
-On the RapidMiner Server web UI you can see the installed web service backend (*Processes*->*Web Services*). It has the name *Repository Service* by default, but you can change that with the optional parameter of `Server` class named `webservice`. You can change the process path location by setting 'processpath', but you need to make sure that it will be executable by all users of the Server API. If the web service is deleted, the next `Server` instantiation will re-create it.
+On the RapidMiner AI Hub web UI you can see the installed web service backend (*Processes*->*Web Services*). It has the name *Repository Service* by default, but you can change that with the optional parameter of `Server` class named `webservice`. You can change the process path location by setting 'processpath', but you need to make sure that it will be executable by all users of the Server API. If the web service is deleted, the next `Server` instantiation will re-create it.
 
 ### Usage of Server API
 
 To create a `Server` `Connector` object, run the following code:
 
 ```python
-import rapidminer
 connector = rapidminer.Server("https://myserver.mycompany.com:8080", username="myrmuser")
 ```
 
-where you replace `"https://myserver.mycompany.com:8080"` with the url of your Server instance and `"myrmuser"` with your username.
+where you replace `"https://myserver.mycompany.com:8080"` with the url of your RapidMiner AI Hub instance and `"myrmuser"` with your username.
 
 ##### Reading ExampleSet
 
@@ -130,17 +167,25 @@ Once you have a connector instance, you can read a RapidMiner ExampleSet in Pyth
 df = connector.read_resource("/home/myrmuser/data/mydata")
 ```
 
-The resulting `df` is a `pandas` `DataFrame` object, which you can use in the conventional way.
+You can also read the latest version of a data set from a versioned project by running the following line:
+
+```python
+df = connector.read_resource("data/mydata", project="myproject")
+```
+
+The resulting `df` in both cases is a `pandas` `DataFrame` object, which you can use in the conventional way.
 
 ##### Writing ExampleSet
 
-You can save any `pandas` `DataFrame` object to the Server repository with the following command:
+You can save any `pandas` `DataFrame` object to the RapidMiner AI Hub repository with the following command:
 
 ```python
 connector.write_resource(df, "/home/myrmuser/data/myresult")
 ```
 
 where `df` is the `DataFrame` object you want to write to the repository, and `"/home/myrmuser/data/myresult"` is the location where you want to store it.
+
+If you want to write to a versioned project, use the Project class' write method to write to the local disk first (after cloning the project locally), then use git commit and push to publish your changes to RapidMiner AI Hub.
 
 ##### Running a process
 
@@ -150,11 +195,17 @@ To run a process execute the following line:
 df = connector.run_process("/home/myrmsuer/process/transform_data", inputs=df)
 ```
 
-You will get the results as `pandas` `DataFrames`. You can also define multiple inputs, and other parameters. For more examples, see the [examples notebook](examples/server_examples.ipynb)
+You will get the results as `pandas` `DataFrames`. You can also define multiple inputs, and other parameters. For more examples, see the [examples notebook](examples/server_examples.ipynb).
+
+You may want to run a process that resides in a versioned project. Note that in this case, inputs and outputs are not allowed, as the process can only directly read from the project and potentially write back using an automatic commit and push. To run the latest version of a process in project, use the following line:
+
+```python
+df = connector.run_process("processes/myprocess", project="myproject")
+```
 
 ## Scoring
 
-This class allows you to easily use a deployed [Real-Time Scoring](https://docs.rapidminer.com/server/scoring-agent/) service. You only need to provide the Server url and the particular scoring service endpoint to create a class instance. After that, you can use the predict method to do scoring on a Pandas DataFrame and get the result in a Pandas DataFrame as well. For instructions on how to deploy Real-Time Scoring on Server, please refer to its documentation.
+This class allows you to easily use a deployed [Real-Time Scoring](https://docs.rapidminer.com/server/scoring-agent/) service. You only need to provide the RapidMiner AI Hub url and the particular scoring service endpoint to create a class instance. After that, you can use the predict method to do scoring on a pandas DataFrame and get the result in a pandas DataFrame as well. For instructions on how to deploy Real-Time Scoring on RapidMiner AI Hub, please refer to its documentation.
 
 ```python
 sc = rapidminer.Scoring("http://myserver.mycompany.com:8090", "score-sales/score1")

@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2019 RapidMiner GmbH
+# Copyright (C) 2018-2020 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -68,3 +68,23 @@ class RepositoryLocation(Resource):
         else:
             return self.name
 
+class ProjectLocation(Resource):
+    
+    def __init__(self, project, path):
+        """
+        Creates a new project location representation.
+
+        :param project: the project base path. It can be an absolute path, or a relative path from the current folder.
+        :param path: the relative path inside the project.
+        """
+        if not project or not path:
+            raise ValueError("Both 'project' and 'path' arguments must not be empty.")
+        self.project = project
+        self.path = path
+    
+    def to_string(self, with_prefix=True):
+        if with_prefix:
+            return "git://" + self.project + ".git/" + self.path
+        else:
+            return self.project + "/" + self.path
+    
