@@ -587,9 +587,9 @@ them access to the process created by this operation."""
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", "Unverified HTTPS request")
                 response = request(headers=headers_fn(), verify=self.__verifySSL)
-                if reconnect and response.status_code == 401:
-                    # token may expired, try to reconnect:
-                    self.log("Session expired. Trying to reconnect to the server...")
+                if reconnect and response.status_code in [401, 500]:
+                    # token may have expired, try to reconnect:
+                    self.log("Session may have expired. Trying to reconnect to the server...")
                     self.__connect()
                     response = request(headers=headers_fn(), verify=self.__verifySSL)
         except requests.exceptions.SSLError as e:
