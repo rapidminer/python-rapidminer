@@ -17,7 +17,7 @@ This Python package allows you to interact with RapidMiner Studio and AI Hub. Yo
 
 * RapidMiner Studio *9.7.0* for Studio class
 * RapidMiner AI Hub *9.7.0* for Server class
-* Python Scripting extension *9.6.0* or later installed for both Studio and RapidMiner AI Hub, download it from the [Marketplace](https://marketplace.rapidminer.com/UpdateServer/faces/product_details.xhtml?productId=rmx_python_scripting)
+* Python Scripting extension *9.7.0* or later installed for both Studio and RapidMiner AI Hub, download it from the [Marketplace](https://marketplace.rapidminer.com/UpdateServer/faces/product_details.xhtml?productId=rmx_python_scripting)
 
 ## Known current limitations
 
