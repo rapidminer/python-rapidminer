@@ -125,7 +125,7 @@ them access to the process created by this operation."""
         :param url: Server url path (hostname and port as well)
         :param username: user to use Server with
         :param password: password for the username. If not provided, you will need to enter it.
-        :param size_limit_kb: maximum number of kilobytes that are allowed to be read from or writing to Server. Reading or writing large objects may degrade Server's performance or lead to out of memory errors. Default value is 50000.
+        :param size_limit_kb: this setting is only applied when using a (legacy) repository and not a project! Maximum number of kilobytes that are allowed to be read from or writing to Server. Reading or writing large objects may degrade Server's performance or lead to out of memory errors. Default value is 50000.
         :param webservice: this API requires an auxiliary process installed as a web service on the Server instance. This parameter specifies the name for this web service. The web service is automatically installed if it has not been.
         :param processpath: path in the repository where the process behind the web service will be saved. If not specified, a user prompt asks for the path, but proposes a default value. Note that you may want to make this process executable for all users.
         :param tempfolder: repository folder on Server that can be used for storing temporary objects by run_process method. Default value is "tmp" inside the user home folder. Note that in case of certain failures, you may need to delete remaining temporary objects from this folder manually.
@@ -374,32 +374,30 @@ them access to the process created by this operation."""
         self.log("Getting up-to-date access token from: " + api_url, level=logging.DEBUG)
         r = requests.get(api_url, headers={'Authorization': 'token %s' % api_token})
         r.raise_for_status()
-        rms_jwt=r.json()['auth_state']['rms_jwt_idToken']
-        return rms_jwt
+        rms_jwt = r.json()['auth_state']['rms_jwt_idToken']
+        # Bearer Authorization header
+        return { 'Authorization' : 'Bearer %s' %  jwt }
 
     def __connect_basic_auth_header(self):
         # Encode the basic Authorization header
         userAndPass = base64.b64encode(bytes(self.username + ":" + self.__password, "utf-8")).decode("ascii")
-        headers = { 'Authorization' : 'Basic %s' %  userAndPass }
-
-        r = self.__send_request(partial(requests.get, url=self.server_url + '/api/rest/tokenservice'),
+        header = { 'Authorization' : 'Basic %s' %  userAndPass }
+        # dummy call to check credentials
+        r = self.__send_request(partial(requests.get, url=self.server_url + '/api/rest/instance'),
                                 error_fn=lambda s:
                                 "Connection error, status: " + str(s) + "."
                                 + (" Make sure that you entered a valid username and password." if s == 401 else ""),
-                                reconnect=False, headers_fn=lambda: headers)
+                                reconnect=False, headers_fn=lambda: header)
         if "Access denied" in r.text:
             raise ServerException("Connection error: Access denied")
-
-        # JWT idToken for the RM Server
-        return r.json()['idToken']
+        return header
 
     def __connect(self):
         if _is_docker_based_deployment():
-            jwt=self.__connect_idp()
+            self.auth_header = self.__connect_idp()
         else:
-            jwt=self.__connect_basic_auth_header()
-        # Bearer Authorization header
-        self.auth_header = { 'Authorization' : 'Bearer %s' %  jwt }
+            # currently, only user/password is supported
+            self.auth_header = self.__connect_basic_auth_header()
         self.log("Successfully connected to the Server")
 
     def __print_welcome_msg(self):
@@ -587,7 +585,7 @@ them access to the process created by this operation."""
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", "Unverified HTTPS request")
                 response = request(headers=headers_fn(), verify=self.__verifySSL)
-                if reconnect and response.status_code in [401, 500]:
+                if reconnect and response.status_code == 401:
                     # token may have expired, try to reconnect:
                     self.log("Session may have expired. Trying to reconnect to the server...")
                     self.__connect()
@@ -619,8 +617,8 @@ them access to the process created by this operation."""
         except (TypeError, KeyError):
             # the response is in the wrong (legacy) format
             pass
-        if extensionVersion is None or not Version(extensionVersion).is_at_least(Version("9.5.0")):
-            raise VersionException("RapidMiner Server", "to 9.5.0 or newer")
+        if extensionVersion is None or not Version(extensionVersion).is_at_least(Version("9.7.0")):
+            raise VersionException("RapidMiner Server", "9.7.0 or newer")
 
     def __read_project(self, project, path):
         get_url = self.server_url + "/executions/repositories/" + project + "/resources/master/" + path

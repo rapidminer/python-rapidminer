@@ -20,6 +20,7 @@ import sys
 import numpy as np
 import base64
 import warnings
+import datetime
 
 try:
     from .. import __version__
@@ -35,6 +36,16 @@ except NameError:
 class DateConversionError(ValueError):
     def __init__(self, msg):
         super(DateConversionError, self).__init__(msg)
+
+# returns the error raised for empty inputs by pandas.read_csv (pandas version dependent)
+def __get_empty_data_error():
+    try:
+        return pandas.errors.EmptyDataError
+    except:
+        try:
+            return pandas.parser.CParserError, ValueError
+        except:
+            return None
 
 def __open_file_python2(file, mode):
     return open(file, mode)
@@ -113,7 +124,10 @@ def read_example_set(input_csv, input_pmd):
     def read_date(epoch):
         if epoch != "null" and epoch is not np.nan and epoch == epoch:
             # because of some older pandas versions, we need to read in "ns"
-            return pandas.to_datetime(int(epoch)*1000, unit='ns')
+            try:
+                return pandas.to_datetime(int(epoch)*1000, unit='ns')
+            except OverflowError:
+                raise Exception("Overflow error occurred during reading date columns. Python pandas can only handle dates between " + str(datetime.date(1677,9,21)) + " and " + str(datetime.date(2262,4,11)) + ".\n\nIf you want to use dates outside this range, please convert your data to integer in RapidMiner with 'Date to Numerical' operator, and convert back integer values in Python pandas manually in your code.")
         else:
             return None
 
@@ -141,6 +155,8 @@ def read_example_set(input_csv, input_pmd):
             print("type in '" + rm_type + "' is not a valid rapidminer type")
             write_to_error_log("type in '" + rm_type + "' is not a valid rapidminer type")
             sys.exit(65)
+        else:
+            dtype[index] = "int64"
         rename_map[index] = attr
         index = index + 1
     # data
@@ -151,14 +167,22 @@ def read_example_set(input_csv, input_pmd):
         except:
             # older Pandas version does not have pandas.errors
             pass
-        df = pandas.read_csv(input_csv,
-                                 dtype=dtype,
+        try:
+            df = pandas.read_csv(input_csv,
+                                 dtype={i:dtype[i] for i in dtype.keys() if dtype[i] != "int64"},
                                  encoding="utf-8",
                                  header=None,
                                  converters=conv,
                                  parse_dates=date_cols,
                                  date_parser=lambda epoch: read_date(epoch))
-    df.rename(columns=rename_map, inplace=True)
+            df.rename(columns=rename_map, inplace=True)
+        except __get_empty_data_error():
+            df = pandas.DataFrame([["obj" for _ in range(len(rename_map))]], columns=[rename_map[i] for i in range(len(rename_map))])
+            df = df.iloc[0:0]
+            if len(dtype) > 0:
+                dtype_map = {rename_map[i]:dtype[i] for i in dtype.keys()}
+                for column in dtype_map.keys():
+                    df[column] = df[column].astype(dtype_map[column])
     set_metadata_without_warning(df, transform_metadata(metadata))
     return df
 

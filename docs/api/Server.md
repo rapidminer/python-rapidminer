@@ -28,7 +28,7 @@ Arguments:
 - `url`: Server url path (hostname and port as well)
 - `username`: user to use Server with
 - `password`: password for the username. If not provided, you will need to enter it.
-- `size_limit_kb`: maximum number of kilobytes that are allowed to be read from or writing to Server. Reading or writing large objects may degrade Server's performance or lead to out of memory errors. Default value is 50000.
+- `size_limit_kb`: this setting is only applied when using a (legacy) repository and not a project! Maximum number of kilobytes that are allowed to be read from or writing to Server. Reading or writing large objects may degrade Server's performance or lead to out of memory errors. Default value is 50000.
 - `webservice`: this API requires an auxiliary process installed as a web service on the Server instance. This parameter specifies the name for this web service. The web service is automatically installed if it has not been.
 - `processpath`: path in the repository where the process behind the web service will be saved. If not specified, a user prompt asks for the path, but proposes a default value. Note that you may want to make this process executable for all users.
 - `tempfolder`: repository folder on Server that can be used for storing temporary objects by run_process method. Default value is "tmp" inside the user home folder. Note that in case of certain failures, you may need to delete remaining temporary objects from this folder manually.

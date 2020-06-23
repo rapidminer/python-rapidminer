@@ -1,6 +1,6 @@
 # RapidMiner Python package
 
-This Python package allows you to interact with RapidMiner Studio and AI Hub. You can collaborate using the RapidMiner repository and leverage the scalable RapidMiner AI Hub infrastructure to run processes. This document shows examples on how to use the package. Additional notebook files provide more advanced examples. There is an API document for each classes: [Project](docs/api/Project.md), [Studio](docs/api/Studio.md), [Server](docs/api/Server.md), [Scoring](docs/api/Scoring.md).
+This Python package allows you to interact with RapidMiner Studio and AI Hub. You can collaborate using the RapidMiner repository and leverage the scalable RapidMiner AI Hub infrastructure to run processes. This document shows examples on how to use the package. Additional notebook files provide more advanced examples. There is an API document for each classes: [Project](docs/api/Project.md), [Studio](docs/api/Studio.md), [Server](docs/api/Server.md), [Scoring](docs/api/Scoring.md). You can find the [changelog for the package here](CHANGES.md).
 
 ## Table of contents
 

@@ -52,7 +52,7 @@ class Project():
                        "DATE": np.int8(10),
                        "TIME": np.int8(11)}
     _LEGACY_TYPES = ["TEXT", "BINOMINAL", "FILE_PATH", "DATE", "TIME"] # POLYNOMIAL handled separatly
-    _METADATA_ROLES = ["BATCH", "CLUSTER", "ID", "LABEL", "METADATA", "OUTLIER", "PREDICTION", "SCORE", "WEIGHT"]
+    _METADATA_ROLES = ["BATCH", "CLUSTER", "ID", "LABEL", "OUTLIER", "PREDICTION", "WEIGHT"]
 
     def __init__(self, path="."):
         """
@@ -154,6 +154,17 @@ class Project():
         else:
             meta_type = 'polynominal'
         return meta_type
+
+    def __get_role(hdf_column):
+        if "role" in hdf_column.attrs:
+            r = decode(hdf_column.attrs.get("role"))
+            if r in Project._METADATA_ROLES:
+                return r.lower()
+            elif r in ["SCORE", "METADATA"]:
+                return decode(hdf_column.attrs.get("legacy_role"))
+            else:
+                raise ProjectException("Role '" + r +  "' not recognized. (Column '" + decode(hdf_column.attrs.get('name')) + "'.)" )
+        return None
     
     def __read_data_from_input(f):
         numberOfColumns = f.attrs.get('columns')
@@ -164,7 +175,7 @@ class Project():
         metadata = dict(zip(names,
             [((Project.__get_type(df.dtypes[decode(f[x].attrs.get('name'))].kind,
                                  f[x].attrs)),
-             decode(f[x].attrs.get("role")).lower() if "role" in f[x].attrs else None) for x in keys]))
+             Project.__get_role(f[x])) for x in keys]))
         set_metadata_without_warning(df, metadata)
         return df
 
@@ -233,6 +244,14 @@ class Project():
             dset.attrs['type'] = "Real"
         return dset
 
+    def __to_column_role(role):
+        if role.startswith("confidence"):
+            return ("SCORE", role)
+        elif role.upper() in Project._METADATA_ROLES:
+            return (role.upper(), None)
+        else:
+            return ("METADATA", role)
+
     def __set_common_column_attributes(frame, dset, desired_type, name):
         dset.attrs['name'] = name
         if desired_type in Project._LEGACY_TYPES:
@@ -240,7 +259,10 @@ class Project():
         if hasattr(frame, "rm_metadata") and name in frame.rm_metadata:
             md = frame.rm_metadata[name]
             if len(md) > 1 and md[1]:
-                dset.attrs['role'] = md[1]
+                role, legacy_role = Project.__to_column_role(md[1])
+                dset.attrs['role'] = role
+                if legacy_role is not None:
+                    dset.attrs['legacy_role'] = legacy_role
 
     def __write_column(f, frame, column, name, index):
         desired_type = Project.__get_desired_type(frame, column, name)
@@ -260,8 +282,6 @@ class Project():
             for key in md.keys():
                 if md[key][0] is not None and md[key][0].upper() not in Project._METADATA_TYPES.keys():
                     raise ProjectException("%s is not a valid type in rm_metadata." % (md[key][0]))
-                if md[key][1] is not None and md[key][1].upper() not in Project._METADATA_ROLES:
-                    raise ProjectException("%s is not a valid role in rm_metadata." % (md[key][1]))
         Project.__write_data(data, filename)
 
     def __write_data(data, filename): #todo: error handling

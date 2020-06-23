@@ -82,8 +82,10 @@ def extract_json(res):
     return response
 
 
-def put_docker_notebook_start(path):
-    data = pkgutil.get_data(__name__, "notebooks/server_docker_start.ipynb")
+def put_docker_notebook_start(path, template_type="long"):
+    if template_type not in ["short", "long"]:
+        raise ValueError("Template_type should be 'long' or 'short' (" + str(template_type) + " is provided).")
+    data = pkgutil.get_data(__name__, "notebooks/server_docker_start_" + template_type + ".ipynb")
     with open(path, "wb") as outf:
         outf.write(data)
 
