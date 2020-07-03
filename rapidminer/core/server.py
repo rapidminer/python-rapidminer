@@ -374,7 +374,7 @@ them access to the process created by this operation."""
         self.log("Getting up-to-date access token from: " + api_url, level=logging.DEBUG)
         r = requests.get(api_url, headers={'Authorization': 'token %s' % api_token})
         r.raise_for_status()
-        rms_jwt = r.json()['auth_state']['rms_jwt_idToken']
+        jwt = r.json()['auth_state']['rms_jwt_idToken']
         # Bearer Authorization header
         return { 'Authorization' : 'Bearer %s' %  jwt }
 
