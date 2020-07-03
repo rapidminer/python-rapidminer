@@ -4,6 +4,10 @@ Note that this list is meant to track the main changes and does not provide an e
 
 The first 3 numbers in the version always indicate the RapidMiner platform (Studio and AI Hub) version that the package is meant to be used with. This does not mean that the package is always incompatible with a different platform version. We aim to add explicit error messages when there is an incompatibility between versions, but it is generally recommended to always use the same version of the package and the RapidMiner platform.
 
+### Version 9.7.1.1
+
+* Fixed `get_server()` call on docker-based environments
+
 ### Version 9.7.1.0
 
 * Fixed the loss of attribute roles when using `read()` of `Project` class
