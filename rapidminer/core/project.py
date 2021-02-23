@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2020 RapidMiner GmbH
+# Copyright (C) 2018-2021 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -25,6 +25,7 @@ from .serdeutils import set_metadata_without_warning
 from .utilities import ProjectException
 from .utilities import TooManyBinomialValuesError
 from .utilities import ValueConversionError
+from .connections import Connections
 
 
 
@@ -61,7 +62,6 @@ class Project():
         :param path: path to the local project repository root folder. It can be a relative path from the current working directory or an absolute path, . The default value points to the working directory.
         """
         if not os.path.exists(path):
-            dirname = os.path.dirname(path)
             if path == "":
                 msg_dir_part = "in the current directory"
             else:
@@ -95,6 +95,11 @@ class Project():
             path = path + Project._RM_HDF5_EXTENSION
         Project.__write_data_safe(df, path)
 
+    def get_connections(self):
+        """
+        Returns the connection in that this project contains.
+        """
+        return Connections(self.path)
         
 #####################
 # Private functions #

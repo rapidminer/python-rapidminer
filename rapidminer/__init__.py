@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2020 RapidMiner GmbH
+# Copyright (C) 2018-2021 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -15,7 +15,7 @@
 # If not, see https://www.gnu.org/licenses/.
 #
 
-__version__ = "9.7.1.1"
+__version__ = "9.9.0.0-beta"
 
 from .core.studio import Studio
 from .core.server import Server
@@ -24,3 +24,4 @@ from .core.server import get_server
 from .core.scoring import Scoring
 from .core.resources import File
 from .core.resources import RepositoryLocation
+from .core.connections import Connections

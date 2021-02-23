@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2020 RapidMiner GmbH
+# Copyright (C) 2018-2021 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -136,6 +136,8 @@ them access to the process created by this operation."""
         """
         super(Server, self).__init__(logger, loglevel)
         # URL of the Rapidminer Server
+        if url.endswith("/"):
+            url = url[:-1]
         self.server_url = url
         if not _is_docker_based_deployment():
             # RapidMiner Server Username
@@ -197,7 +199,7 @@ them access to the process created by this operation."""
                 this_project = inp.project
                 inp = inp.path
             elif not isinstance(inp, str):
-                raise ServerException("Input path should be 'str' or 'rapidminer.RepositoryLocation object, not '" + str(type(inp)) + "'.")
+                raise ServerException("Input path should be 'str' or 'rapidminer.RepositoryLocation or 'rapidminer.ProjectLocation object, not '" + str(type(inp)) + "'.")
             if this_project:
                 resources.append(self.__read_project(this_project, inp))
             else:
@@ -343,13 +345,42 @@ them access to the process created by this operation."""
 
     def get_projects(self):
         """
-        Gets information of the available projects in the Server instance.
+        Gets information of the available projects in the AI Hub instance.
 
         :return: a JSON array of objects representing each repository with its properties
         """
         get_url = self.server_url + "/executions/repositories?"
         r = self.__send_request(partial(requests.get, get_url),
                                 lambda s: "Failed to get projects, status: " + str(s))
+        return r.json()
+    
+    def get_vault_info(self, location):
+        """
+        Load all server vault entries for a repository location.
+        
+        :param location: the location to read the vault information for. Note that there is a different syntax depending on the target repository type. For Projects, use git://reponame.git/Connections/My Connection.conninfo. For AI Hub repository, use /Connections/My Connection
+        """
+        if isinstance(location, ProjectLocation):
+            location = location.to_string(with_prefix=True)
+        elif not isinstance(location, str):
+            raise ServerException("Location must be be 'str' or 'rapidminer.ProjectLocation object, not '" + str(type(inp)) + "'.")
+        get_url = self.server_url + "/executions/connections/vault?location=" + location
+        r = self.__send_request(partial(requests.get, get_url),
+                                lambda s: "Failed to get vault info, status: " + str(s))
+        return r.json()
+
+    def get_project_info(self, project_name):
+        """
+        Read the information for a project from AI Hub.
+        
+        :param project_name: specifies the project
+        :return: info in JSON format for the project
+        """
+        get_url = self.server_url + "/executions/repositories/" + project_name
+        r = self.__send_request(partial(requests.get, get_url),
+                                lambda s: "Failed to get project info" 
+                                + (": No project exists with the name '" + project_name + "', provide a valid project name" 
+                                   if s == 404 else ", status: " + str(s)))
         return r.json()
         
         

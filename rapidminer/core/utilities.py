@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2020 RapidMiner GmbH
+# Copyright (C) 2018-2021 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -16,7 +16,6 @@
 #
 import os
 import sys
-import pkgutil
 
 if sys.version_info.major > 2:
     def __open__(file, mode):
@@ -80,14 +79,6 @@ def extract_json(res):
                 str = "Unkown error: " + str(response)
             raise ServerException(str)
     return response
-
-
-def put_docker_notebook_start(path, template_type="long"):
-    if template_type not in ["short", "long"]:
-        raise ValueError("Template_type should be 'long' or 'short' (" + str(template_type) + " is provided).")
-    data = pkgutil.get_data(__name__, "notebooks/server_docker_start_" + template_type + ".ipynb")
-    with open(path, "wb") as outf:
-        outf.write(data)
 
 
 class Version:
