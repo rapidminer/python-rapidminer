@@ -1,6 +1,6 @@
 # RapidMiner Python package
 
-This Python package allows you to interact with RapidMiner Studio and AI Hub. You can collaborate using the RapidMiner repository and leverage the scalable RapidMiner AI Hub infrastructure to run processes. This document shows examples on how to use the package. Additional notebook files provide more advanced examples. There is an API document for each classes: [Project](docs/api/Project.md), [Studio](docs/api/Studio.md), [Server](docs/api/Server.md), [Scoring](docs/api/Scoring.md). You can find the [changelog for the package here](CHANGES.md).
+This Python package allows you to interact with RapidMiner Studio and AI Hub. You can collaborate using the RapidMiner repository and leverage the scalable RapidMiner AI Hub infrastructure to run processes. This document shows examples on how to use the package. Additional notebook files provide more advanced examples. There is an API document for each classes: [Project](docs/api/Project.md), [Studio](docs/api/Studio.md), [Server](docs/api/Server.md), [Connections](docs/api/Connections.md), [Scoring](docs/api/Scoring.md). You can find the [changelog for the package here](CHANGES.md).
 
 ## Table of contents
 
@@ -9,6 +9,7 @@ This Python package allows you to interact with RapidMiner Studio and AI Hub. Yo
 - [Overview](#requirements)
 - [Installation](#installation)
 - [Project](#project)
+- [Connections](#connections)
 - [Studio](#studio)
 - [Server](#server)
 - [Scoring](#scoring)
@@ -42,6 +43,9 @@ Server class connects directly to a RapidMiner AI Hub instance without the need 
 
 Project class is required to work with the git-based versioned repositories called projects. Projects can be shared using RapidMiner AI Hub. The shared data format allows Python coders and RapidMiner users to easily work on the same data. To summarize, this class is suitable in the following cases:
 * Using versioned projects to collaborate with RapidMiner users and share data easily.
+
+Connections class can be used to access connections defined in a project. This way, Python coders can use the same external connections that are used by RapidMiner users. The connection fields are accessible, you only need an appropriate Python package to use those values.
+* Using and sharing connections easily and securely without entering or storing any information redundantly.
 
 ## Installation
 
@@ -91,6 +95,28 @@ After writing the data set to the disk, you can use git commit and push to publi
 ##### Running a process
 
 Use Studio or Server classes to run a process from a project, see examples below.
+
+## Connections
+
+Connections in RapidMiner allow you to access external systems like databases, cloud services, social media, etc. With the Connections class, you can reuse connections defined in RapidMiner in an easy and secure way. Access all connections in a project, by pointing to the project folder:
+
+```python
+import rapidminer
+connections = rapidminer.Connections("myproject", server=rapidminer.Server("https://myserver.mycompany.com:8080", username="myrmuser"))
+```
+
+Here, we already pointed to a [Server](#server) instance. That is only necessary if you have encrypted connection fields or use the AI Hub Vault to store certain sensitive values.
+
+You can read the values of the connection fields by either using the connection name or an index. Use these field values to establish a connection using an appropriate Python package. The following code shows several different ways to access these values. Encryption or value injection (e.g. from AI Hub Vault) is handled transparently:
+
+```python
+myconn = connections["my_db_connection"]
+mydb = myconn.values["database"]
+myuser = myconn.user
+mypass = connections[0].password
+myhost = myconn.find_first("host")
+myport = connections[0].values["port"]
+```
 
 ## Studio
 

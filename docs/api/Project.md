@@ -35,3 +35,11 @@ Project.write(df, path)
 Writes a pandas DataFrame into the RapidMiner-specific HDF5 file format that the rest of the RapidMiner platform uses. Note that you need to explicitly commit and push your local changes to the remote project repository (e.g. via git commands) to make them available to the platform.
 
 - `path`: relative path inside the project (e.g. subfolder and file name) specifying the target location or an absolute path. The RapidMiner-specific HDF5 file extension is automatically added to the filename, if it is missing.
+
+
+### get_connections
+```python
+Project.get_connections()
+```
+
+Returns the connection in that this project contains.
