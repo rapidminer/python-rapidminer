@@ -27,6 +27,36 @@ Initializes a reference to a locally cloned project. You need to clone a project
 Class that represents a single connection.
 
 
+### config
+
+The raw internal JSON configuration of the connection.
+
+
+### name
+
+The name of the connection.
+
+
+### password
+
+Quick way to access the first field that probably contains a password, e.g. the field name contains the string password.
+
+
+### type
+
+Type of the connection, i.e. what kind of system or service it connects to.
+
+
+### user
+
+Quick way to access the first field that probably contains a user name, e.g. the field name contains the string username.
+
+
+### values
+
+Dictionary with all the connection fields. Injected and encrypted fields are all handled transparently provided that the appropriate information is accessible. Otherwise, an error is thrown for the first problem.
+
+
 
 ```python
 Connection(filepath, config, connections)

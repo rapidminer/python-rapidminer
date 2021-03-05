@@ -697,7 +697,7 @@ them access to the process created by this operation."""
                         obj = pickle.load(io.BytesIO(base64.b64decode(content)))
                     except Exception as exc:
                         raise GeneralException("Error while trying to load pickled object (note that Python 2 objects may not be readable): " + str(exc))
-                    resources.append(obj)
+                    return obj
                 elif ext == 'fo':
                     return io.BytesIO(base64.b64decode(content.encode("utf-8"))) # reads the file to memory
             except KeyError as e:

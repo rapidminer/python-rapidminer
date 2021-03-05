@@ -27,7 +27,6 @@ import base64
 from .utilities import ProjectException
 from .utilities import ServerException
 from .resources import ProjectLocation
-#from .server import get_server, _is_docker_based_deployment
 
 
 class Connections():
@@ -35,8 +34,8 @@ class Connections():
     Class for using connections from a Project or Repository.
     """
     
-    CONNECTIONS_SUBDIR = "Connections"
-    CONNECTIONS_EXTENSION = ".conninfo"
+    _CONNECTIONS_SUBDIR = "Connections"
+    _CONNECTIONS_EXTENSION = ".conninfo"
     
     def __init__(self, path=".", server=None, project_name=None, show_parameter_groups=False, macros=None):
         """
@@ -54,12 +53,12 @@ class Connections():
         # if not specified, derive project name from the directory name
         if not project_name:
             project_name = os.path.basename(path)
-        path = os.path.join(path, Connections.CONNECTIONS_SUBDIR)
+        path = os.path.join(path, Connections._CONNECTIONS_SUBDIR)
         if not os.path.exists(path):
             raise ProjectException("Connections directory does not exist at the specified path '%s'. Please make sure you have a local copy of the project." % (os.path.dirname(path)))
         self.path = path
         aead.register()
-        conn_files = glob.glob(os.path.join(self.path, "*" + Connections.CONNECTIONS_EXTENSION))
+        conn_files = glob.glob(os.path.join(self.path, "*" + Connections._CONNECTIONS_EXTENSION))
 
         self.server = server
         self.project_name = project_name
@@ -70,7 +69,7 @@ class Connections():
         for z in conn_files:
             with zipfile.ZipFile(z) as zf:
                 with zf.open("Config") as f:
-                    self.__list.append(Connection(os.path.join(Connections.CONNECTIONS_SUBDIR, os.path.basename(z)),
+                    self.__list.append(Connection(os.path.join(Connections._CONNECTIONS_SUBDIR, os.path.basename(z)),
                                                   json.loads(f.read(), object_pairs_hook=OrderedDict), self))
         self.__list.sort(key=lambda c: c.name)
 
@@ -118,7 +117,7 @@ class Connection():
 
         :param filepath: path to the connection file
         :param config: dictionary containing all the connection details; can be directly created from the JSON content of the connection
-        :param connecionts: reference to the parent Connections object
+        :param connections: reference to the parent Connections object
         """
         self.__filepath = filepath
         self.__config = config
@@ -129,28 +128,46 @@ class Connection():
 
     @property
     def config(self):
+        """
+        The raw internal JSON configuration of the connection.
+        """
         return self.__config
 
     @property
     def name(self):
+        """
+        The name of the connection.
+        """
         return self.__name
 
     @property
     def type(self):
+        """
+        Type of the connection, i.e. what kind of system or service it connects to.
+        """
         return self.__type
 
     @property
     def values(self):
+        """
+        Dictionary with all the connection fields. Injected and encrypted fields are all handled transparently provided that the appropriate information is accessible. Otherwise, an error is thrown for the first problem.
+        """
         self.__refresh_dynamic_values()
         return self.__values
 
     # Accessing some of the typical fields easily
     @property
     def user(self):
+        """
+        Quick way to access the first field that probably contains a user name, e.g. the field name contains the string username.
+        """
         return self.find_first("username", "user")
 
     @property
     def password(self):
+        """
+        Quick way to access the first field that probably contains a password, e.g. the field name contains the string password.
+        """
         return self.find_first("password")
 
     def find_first(self, *words):

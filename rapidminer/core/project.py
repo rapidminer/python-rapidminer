@@ -52,8 +52,11 @@ class Project():
                        "DATE_TIME": np.int8(9),
                        "DATE": np.int8(10),
                        "TIME": np.int8(11)}
-    _LEGACY_TYPES = ["TEXT", "BINOMINAL", "FILE_PATH", "DATE", "TIME"] # POLYNOMIAL handled separatly
+    _LEGACY_TYPES = ["TEXT", "BINOMINAL", "FILE_PATH", "DATE"] # POLYNOMIAL handled separatly
     _METADATA_ROLES = ["BATCH", "CLUSTER", "ID", "LABEL", "OUTLIER", "PREDICTION", "WEIGHT"]
+
+    __RM_MISSING_DATETIME_OR_TIME = 9223372036854775807 # constant value is coming from com.rapidminer.storage.hdf5.ExampleSetHdf5Writer.java#writeDateData/writeTimeData as of Long.MAX_VALUE/TimeColumn.MISSING_VALUE
+    __PANDAS_MISSING_DATE = pd.to_numeric(pd.Series([datetime.utcfromtimestamp(0), None]), downcast="integer")[1]
 
     def __init__(self, path="."):
         """
@@ -105,7 +108,8 @@ class Project():
 # Private functions #
 #####################
 
-    __from_ts = np.vectorize(datetime.utcfromtimestamp)
+    __from_ts_nanos = np.vectorize(lambda x: datetime.utcfromtimestamp(x/1e9) if x != Project.__RM_MISSING_DATETIME_OR_TIME else None)
+    __from_ts_seconds_and_nanos = np.vectorize(lambda x,y: datetime.utcfromtimestamp(x+y/1e9) if x != Project.__RM_MISSING_DATETIME_OR_TIME else None)
     __hyp5_string_dtype = h5py.string_dtype()
     __h5py_reference_dtype = h5py.special_dtype(ref=h5py.Reference)
     
@@ -118,7 +122,9 @@ class Project():
             else:
                 return x
         elif typestr in ('Date-Time', 'Date'):
-            return Project.__from_ts(x[:])
+            return Project.__from_ts_seconds_and_nanos(x[:],0)
+        elif typestr == "Time":
+            return Project.__from_ts_nanos(x[:])
         else:
             return x
 
@@ -128,7 +134,7 @@ class Project():
         if "additional" in r.attrs and r.attrs.get("type") == "Date-Time":
             additional = r.attrs.get('additional')
             additional = f[additional]
-            return Project.__from_ts(r[:] + additional[:] / 1e9)
+            return Project.__from_ts_seconds_and_nanos(r[:], additional[:] / 1e9)
         if mapping is None:
             return Project.__get_numerical(r, decode(r.attrs.get('type')))
         if isinstance(mapping,h5py.Reference):
@@ -146,8 +152,10 @@ class Project():
                 if Project._METADATA_TYPES[k] == hdf_attrs.get("legacy_type"):
                     return k.lower()
         hdf_type = decode(hdf_attrs.get("type"))
-        if hdf_type in ("Date-Time", "Date", "Time"):
+        if hdf_type in ("Date-Time", "Date"):
             meta_type = "date_time"
+        elif hdf_type == "Time":
+            meta_type = "time"
         elif df_kind_char in ('i', 'u'):
             meta_type = 'integer'
         elif df_kind_char in ('f'):
@@ -236,14 +244,20 @@ class Project():
             dset.attrs['type'] = "Integer"
         elif desired_type in ["DATE", "TIME", "DATE_TIME"]:
             if column.dtype.kind == "M":
-                nanoseconds = column.dt.tz_localize(None).astype("int64")
+                nanoseconds = pd.to_numeric(column.dt.tz_localize(None), downcast="integer")
             else:
-                nanoseconds = column.astype("int64")
-            dset = f.create_dataset(shortname, data = nanoseconds // int(1e9))
-            additionalname = shortname+"a"
-            aset = f.create_dataset(additionalname, data = nanoseconds % int(1e9))
-            dset.attrs.create("additional", aset.ref, dtype=Project.__h5py_reference_dtype)
-            dset.attrs['type'] = "Date-Time"
+                nanoseconds = pd.to_numeric(column, downcast="integer")
+            if desired_type == "TIME":
+                nanoseconds.where(nanoseconds!=Project.__PANDAS_MISSING_DATE, Project.__RM_MISSING_DATETIME_OR_TIME, inplace=True)
+                dset = f.create_dataset(shortname, data = nanoseconds)
+                dset.attrs['type'] = "Time"
+            else:
+                seconds = nanoseconds.apply(lambda x: x // int(1e9) if x != Project.__PANDAS_MISSING_DATE else Project.__RM_MISSING_DATETIME_OR_TIME)
+                dset = f.create_dataset(shortname, data = seconds )
+                additionalname = shortname+"a"
+                aset = f.create_dataset(additionalname, data = (nanoseconds % int(1e9)).astype("int32"))
+                dset.attrs.create("additional", aset.ref, dtype=Project.__h5py_reference_dtype)
+                dset.attrs['type'] = "Date-Time"
         else:
             dset = f.create_dataset(shortname, data = column.astype("float64"))
             dset.attrs['type'] = "Real"

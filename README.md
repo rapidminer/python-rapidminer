@@ -82,6 +82,12 @@ df = project.read("data/mydata")
 
 The resulting `df` is a `pandas` `DataFrame` object, which you can use in the conventional way.
 
+You can also directly read a file on an arbitrary local path by using a default Project class:
+
+```python
+df = rapidminer.Project().read("local/file/path.rmhdf5table")
+```
+
 ##### Writing ExampleSet
 
 You can save any `pandas` `DataFrame` object to a project with the following command:
