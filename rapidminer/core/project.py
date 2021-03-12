@@ -40,6 +40,7 @@ class Project():
     Class for using a project from RapidMiner Server that has been cloned locally. Use git for cloning the repository, then read and write calls can work on local resources. You need to use git commands to push changes that you make locally.
     """
 
+    __NANOSECONDS_IN_A_DAY = 86400000000000
     _RM_HDF5_EXTENSION = ".rmhdf5table"
     _RM_RMP_EXTENSION = ".rmp"
     _METADATA_TYPES = {"NOMINAL": np.int8(1),
@@ -134,7 +135,7 @@ class Project():
         if "additional" in r.attrs and r.attrs.get("type") == "Date-Time":
             additional = r.attrs.get('additional')
             additional = f[additional]
-            return Project.__from_ts_seconds_and_nanos(r[:], additional[:] / 1e9)
+            return Project.__from_ts_seconds_and_nanos(r[:], additional[:])
         if mapping is None:
             return Project.__get_numerical(r, decode(r.attrs.get('type')))
         if isinstance(mapping,h5py.Reference):
@@ -224,17 +225,18 @@ class Project():
             cat = column.astype("category").cat
             dset = f.create_dataset(shortname, data = pd.to_numeric(cat.codes.apply(lambda x:x+1), downcast='integer'))
             mappingname = 'd'+str(index)
-            mappingvals = cat.categories.values.astype(np.object)
+            mappingvals = cat.categories.values
             replacement = "NULL"
             while replacement in mappingvals:
                 replacement = "\x00" + replacement
-            mappingvals = np.concatenate([[replacement],mappingvals])
+            mappingvals = [str(v) for v in np.concatenate([[replacement],mappingvals])]
             if desired_type == "BINOMINAL" and len(mappingvals) > 3:
                 raise TooManyBinomialValuesError("Column '%s' marked as binomial column in rm_metadata attribute, but has more there is more then two distinct values present.", )
             if len(mappingvals) <= 3:
-                dset.attrs["dictionary"] = [str(v) for v in mappingvals]
-                # positive index may change after read and write
-                dset.attrs['positive_index'] = np.int8(len(mappingvals) - 1)
+                dset.attrs["dictionary"] = mappingvals
+                if desired_type == "BINOMINAL":
+                    # positive index may change after read and write
+                    dset.attrs['positive_index'] = np.int8(len(mappingvals) - 1)
             else:
                 mset = f.create_dataset(mappingname, data=mappingvals, dtype=Project.__hyp5_string_dtype)
                 dset.attrs.create("dictionary", mset.ref, dtype=Project.__h5py_reference_dtype)
@@ -248,7 +250,9 @@ class Project():
             else:
                 nanoseconds = pd.to_numeric(column, downcast="integer")
             if desired_type == "TIME":
-                nanoseconds.where(nanoseconds!=Project.__PANDAS_MISSING_DATE, Project.__RM_MISSING_DATETIME_OR_TIME, inplace=True)
+                missing = nanoseconds==Project.__PANDAS_MISSING_DATE
+                nanoseconds.loc[missing] = Project.__RM_MISSING_DATETIME_OR_TIME
+                nanoseconds.loc[~missing] = nanoseconds.loc[~missing] % int(Project.__NANOSECONDS_IN_A_DAY)
                 dset = f.create_dataset(shortname, data = nanoseconds)
                 dset.attrs['type'] = "Time"
             else:

@@ -15,7 +15,7 @@
 # If not, see https://www.gnu.org/licenses/.
 #
 
-__version__ = "9.9.0.0-beta2"
+__version__ = "9.9.0.0-beta3"
 
 from .core.studio import Studio
 from .core.server import Server

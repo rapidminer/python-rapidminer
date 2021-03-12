@@ -284,7 +284,7 @@ def rename_columns(dataframe):
     return original_names
 
 # base64 encode all nominals and convert dates to epoch
-def convert_to_output_format(df, metadata):
+def convert_to_output_format(df, metadata, hdf5_compliant_date_and_time_conversion):
     def b64(x):
         if isinstance(x, basestring):
             return b64encode(x)
@@ -326,6 +326,11 @@ def convert_to_output_format(df, metadata):
                         else:
                             df[name] = df[name].astype("object")
                             df.loc[index, name] = ((df.loc[index, name] - pandas.to_datetime(0, unit="ns")).dt.total_seconds()*1e6).round().astype("int64")
+                    if hdf5_compliant_date_and_time_conversion:
+                        if meta_type == "time":
+                            df[name] = df[name] % 86400000000
+                        elif meta_type == "date":
+                            df[name] = df[name] // 1e6 * 1e6
                 except ValueError:
                     raise DateConversionError("Error while serializing dataframe: some values in column '" + str(name) + "' are not valid dates.")
             elif __nominal_meta_type(meta_type):
@@ -334,7 +339,7 @@ def convert_to_output_format(df, metadata):
 
 # writes the data and metadata to files
 # SIDE EFFECT: the method may modify the original data
-def write_example_set(data, output_csv, output_pmd):
+def write_example_set(data, output_csv, output_pmd, hdf5_compliant_date_and_time_conversion=False):
     original_names = rename_columns(data)
     # metadata
     metadata = get_metadata(data, original_names)
@@ -345,7 +350,7 @@ def write_example_set(data, output_csv, output_pmd):
     write_file(output_pmd, "  \"metadata\":\n" + json.dumps(metadata))
     write_file(output_pmd, "\n}")
     # data
-    convert_to_output_format(data, metadata)
+    convert_to_output_format(data, metadata, hdf5_compliant_date_and_time_conversion)
     data.to_csv(output_csv, encoding="utf-8", header=False, index=False)
 
 def set_metadata_without_warning(df, metadata):
