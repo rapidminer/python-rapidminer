@@ -225,20 +225,25 @@ class Project():
             cat = column.astype("category").cat
             dset = f.create_dataset(shortname, data = pd.to_numeric(cat.codes.apply(lambda x:x+1), downcast='integer'))
             mappingname = 'd'+str(index)
-            mappingvals = cat.categories.values
+            mappingvals = cat.categories.values.astype(object)
             replacement = "NULL"
             while replacement in mappingvals:
                 replacement = "\x00" + replacement
-            mappingvals = [str(v) for v in np.concatenate([[replacement],mappingvals])]
+            mappingvals = np.concatenate([[replacement], mappingvals])
             if desired_type == "BINOMINAL" and len(mappingvals) > 3:
                 raise TooManyBinomialValuesError("Column '%s' marked as binomial column in rm_metadata attribute, but has more there is more then two distinct values present.", )
             if len(mappingvals) <= 3:
-                dset.attrs["dictionary"] = mappingvals
+                dset.attrs["dictionary"] = [str(v) for v in mappingvals]
                 if desired_type == "BINOMINAL":
                     # positive index may change after read and write
                     dset.attrs['positive_index'] = np.int8(len(mappingvals) - 1)
             else:
-                mset = f.create_dataset(mappingname, data=mappingvals, dtype=Project.__hyp5_string_dtype)
+                mset = f.create_dataset(mappingname, (len(mappingvals), ), dtype=Project.__hyp5_string_dtype)
+                try:
+                    mset[()] = mappingvals
+                except TypeError:
+                    # fixes error: TypeError: Can't implicitly convert non-string objects to strings (caused by some Python environments)
+                    mset[()] = [str(v) for v in mappingvals]
                 dset.attrs.create("dictionary", mset.ref, dtype=Project.__h5py_reference_dtype)
             dset.attrs['type'] = "Nominal"
         elif desired_type == "INTEGER":

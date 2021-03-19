@@ -129,28 +129,17 @@ Returns:
 - a JSON array of objects representing each repository with its properties
 
 
-### get_vault_info
+### get_connections
 ```python
-Server.get_vault_info(location)
+Server.get_connections()
 ```
 
-Load all server vault entries for a repository location.
+Read the connections from the AI Hub repository.
 
-- `location`: the location to read the vault information for. Note that there is a different syntax depending on the target repository type. For Projects, use git://reponame.git/Connections/My Connection.conninfo. For AI Hub repository, use /Connections/My Connection
-
-
-### get_project_info
-```python
-Server.get_project_info(project_name)
-```
-
-Read the information for a project from AI Hub.
-
-- `project_name`: specifies the project
 
 
 
 Returns:
 
 
-- info in JSON format for the project
+- Connections object listing connections from the AI Hub repository. Note that values of encrypted fields are not available (values will be None). Use AI Hub Vault to securely store and retrieve these values instead

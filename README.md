@@ -98,13 +98,15 @@ project.write(df, "data/mydata_modified")
 
 After writing the data set to the disk, you can use git commit and push to publish your changes to the remote project.
 
+For more examples with projects, see the [Project examples notebook](examples/project_examples.ipynb).
+
 ##### Running a process
 
 Use Studio or Server classes to run a process from a project, see examples below.
 
 ## Connections
 
-Connections in RapidMiner allow you to access external systems like databases, cloud services, social media, etc. With the Connections class, you can reuse connections defined in RapidMiner in an easy and secure way. Access all connections in a project, by pointing to the project folder:
+Connections in RapidMiner allow you to access external systems like databases, cloud services, social media, etc. With the Connections class, you can reuse connections defined in RapidMiner in an easy and secure way. Access all connections in a project, by pointing to a local project folder:
 
 ```python
 import rapidminer
@@ -112,6 +114,12 @@ connections = rapidminer.Connections("myproject", server=rapidminer.Server("http
 ```
 
 Here, we already pointed to a [Server](#server) instance. That is only necessary if you have encrypted connection fields or use the AI Hub Vault to store certain sensitive values.
+
+It is also possible to use connections from an AI Hub repository. Assuming here that we have a [Server](#server) instance, you can retrieve the connections defined in its repository:
+
+```python
+connections = server.get_connections()
+```
 
 You can read the values of the connection fields by either using the connection name or an index. Use these field values to establish a connection using an appropriate Python package. The following code shows several different ways to access these values. Encryption or value injection (e.g. from AI Hub Vault) is handled transparently:
 
@@ -123,6 +131,8 @@ mypass = connections[0].password
 myhost = myconn.find_first("host")
 myport = connections[0].values["port"]
 ```
+
+Note when reading connections directly from an AI Hub repository, encrypted values are not available (values are None). You are advised to use AI Hub Vault for these values, or move those connections into projects.
 
 ## Studio
 
@@ -167,7 +177,7 @@ To run a process execute the following line:
 df = connector.run_process("//Samples/processes/02_Preprocessing/01_Normalization")
 ```
 
-You will get the results as `pandas` `DataFrames`. You can also define inputs, and many more. For more examples, see the [examples notebook](examples/studio_examples.ipynb)
+You will get the results as `pandas` `DataFrames`. You can also define inputs, and many more. For more examples, see the [Studio examples notebook](examples/studio_examples.ipynb).
 
 ## Server
 
@@ -227,7 +237,7 @@ To run a process execute the following line:
 df = connector.run_process("/home/myrmsuer/process/transform_data", inputs=df)
 ```
 
-You will get the results as `pandas` `DataFrames`. You can also define multiple inputs, and other parameters. For more examples, see the [examples notebook](examples/server_examples.ipynb).
+You will get the results as `pandas` `DataFrames`. You can also define multiple inputs, and other parameters. For more examples, see the [Server examples notebook](examples/server_examples.ipynb).
 
 You may want to run a process that resides in a versioned project. Note that in this case, inputs and outputs are not allowed, as the process can only directly read from the project and potentially write back using an automatic commit and push. To run the latest version of a process in project, use the following line:
 

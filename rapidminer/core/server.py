@@ -25,12 +25,14 @@ try:
 except:
     import pickle
 from time import sleep
+from .connections import Connections
 from .connector import Connector
 from .utilities import ServerException
 from .utilities import GeneralException
 from .utilities import extract_json
 from .utilities import Version
 from .utilities import VersionException
+from .utilities import _is_docker_based_deployment
 from .resources import RepositoryLocation, ProjectLocation
 from .serdeutils import read_example_set, write_example_set, is_file_object
 from .project import Project
@@ -354,7 +356,20 @@ them access to the process created by this operation."""
                                 lambda s: "Failed to get projects, status: " + str(s))
         return r.json()
     
-    def get_vault_info(self, location):
+    def get_connections(self):
+        """
+        Read the connections from the AI Hub repository.
+        
+        :return: Connections object listing connections from the AI Hub repository. Note that values of encrypted fields are not available (values will be None). Use AI Hub Vault to securely store and retrieve these values instead  
+        """
+        return Connections(path=None, server=self)
+        
+        
+#####################
+# Private functions #
+#####################
+
+    def _get_vault_info(self, location):
         """
         Load all server vault entries for a repository location.
         
@@ -363,13 +378,13 @@ them access to the process created by this operation."""
         if isinstance(location, ProjectLocation):
             location = location.to_string(with_prefix=True)
         elif not isinstance(location, str):
-            raise ServerException("Location must be be 'str' or 'rapidminer.ProjectLocation object, not '" + str(type(inp)) + "'.")
+            raise ServerException("Location must be a 'str' or 'rapidminer.ProjectLocation object, not '" + str(type(inp)) + "'.")
         get_url = self.server_url + "/executions/connections/vault?location=" + location
         r = self.__send_request(partial(requests.get, get_url),
                                 lambda s: "Failed to get vault info, status: " + str(s))
         return r.json()
 
-    def get_project_info(self, project_name):
+    def _get_project_info(self, project_name):
         """
         Read the information for a project from AI Hub.
         
@@ -382,11 +397,23 @@ them access to the process created by this operation."""
                                 + (": No project exists with the name '" + project_name + "', provide a valid project name" 
                                    if s == 404 else ", status: " + str(s)))
         return r.json()
+
+    def _get_connections_info(self):
+        """
+        Read the connections from the AI Hub repository.
         
-        
-#####################
-# Private functions #
-#####################
+        :return: connections in JSON format
+        """
+        get_url = self.server_url + "/api/rest/repository/connections"
+        r = self.__send_request(partial(requests.get, get_url),
+                                lambda s: "Failed to get connections list, status: " + str(s))
+        return r.json()
+
+    def _read_connection_info(self, location):
+        get_url = self.server_url + "/executions/connections/detail?location=" + location
+        r = self.__send_request(partial(requests.get, get_url),
+                                lambda s: "Failed to get connection details, status: " + str(s))
+        return r.json()
 
     def __username(self):
         if _is_docker_based_deployment():
@@ -723,6 +750,3 @@ them access to the process created by this operation."""
             else:
                 raise e
         return r.text
-
-def _is_docker_based_deployment():
-    return all([var in os.environ for var in ["JUPYTERHUB_API_TOKEN", "JUPYTERHUB_API_URL", "JUPYTERHUB_USER"]])

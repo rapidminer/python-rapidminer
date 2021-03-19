@@ -96,3 +96,6 @@ class Version:
             elif selflist[i] < otherlist[i]:
                 return False
         return True
+
+def _is_docker_based_deployment():
+    return all([var in os.environ for var in ["JUPYTERHUB_API_TOKEN", "JUPYTERHUB_API_URL", "JUPYTERHUB_USER"]])

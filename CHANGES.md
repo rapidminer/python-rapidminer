@@ -4,6 +4,12 @@ Note that this list is meant to track the main changes and does not provide an e
 
 The first 3 numbers in the version always indicate the RapidMiner platform (Studio and AI Hub) version that the package is meant to be used with. This does not mean that the package is always incompatible with a different platform version. We aim to add explicit error messages when there is an incompatibility between versions, but it is generally recommended to always use the same version of the package and the RapidMiner platform.
 
+### Version 9.9.0.0
+
+* Added `Connections` class to allow access to connections in projects
+* Added `get_connections()` function to `Server` class to allow access to connections in AI Hub repository
+* Adapted `Time` data type handling to how Studio and AI Hub 9.9.0+ handle it 
+
 ### Version 9.7.1.1
 
 * Fixed `get_server()` call on docker-based environments

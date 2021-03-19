@@ -26,6 +26,7 @@ from tink import JsonKeysetReader
 import base64
 from .utilities import ProjectException
 from .utilities import ServerException
+from .utilities import _is_docker_based_deployment
 from .resources import ProjectLocation
 
 
@@ -39,26 +40,26 @@ class Connections():
     
     def __init__(self, path=".", server=None, project_name=None, show_parameter_groups=False, macros=None):
         """
-        Initializes a reference to a locally cloned project. You need to clone a project from RapidMiner Server first (e.g. via git commands) to be able to use the methods of this instance.
+        Initializes a reference to a locally cloned project or to an AI Hub repository. You either need to clone a project from AI Hub first (e.g. via git commands), or point to an AI Hub repository to be able to use the methods of this class.
         
-        :param path: path to the local project repository root folder. It can be a relative path from the current working directory or an absolute path, . The default value points to the working directory.
-        :param server: Server object; required when values are encrypted or when values are injected from the Server Vault
-        :param project_name: name of the project to which these connections belong; if not specified, it is set to the parent directory name of the specified path parameter
-        :param show_parameter_groups: when set to True (default if False), parameter keys include the group as well in <group>.<key> format; otherwise, group is only added if there is a name collision
-        :param macros: a dictionary or method, defining the values for the macro injected parameters. If a connection has a <prefix> defined for macro keys, the prefix is used before the key in <prefi><original key> format. If a method is used here, it should accept the connection_name and macro_name parameters, and should return the macro value for those.
+        :param path: path to the local project repository root folder. It can be a relative path from the current working directory or an absolute path. The default value points to the working directory. Set it to None to read connections from AI Hub repository (server parameter needs to be set in this case)
+        :param server: Server object; required when values are encrypted or when values are injected from the AI Hub Vault
+        :param project_name: name of the project to which these connections belong; if not specified, it is set to the parent directory name of the specified path parameter. Ignored if AI Hub repository connections are used
+        :param show_parameter_groups: when set to True (default if False), parameter keys include the group as well in group.key format; otherwise, group is only added if there is a name collision among the keys
+        :param macros: a dictionary or method defining the values for the macro injected parameters. If a connection has a prefix defined for macro keys, the prefix is added before the key. If a method is used here, it should accept connection_name and macro_name parameters, and should return the macro value for those
         """
-        if not os.path.exists(path):
-            raise ProjectException("Specified path does not exist: '%s'. Please make sure you have a local copy of the project at the specified path." % path)
-        path = os.path.abspath(path)
-        # if not specified, derive project name from the directory name
-        if not project_name:
-            project_name = os.path.basename(path)
-        path = os.path.join(path, Connections._CONNECTIONS_SUBDIR)
-        if not os.path.exists(path):
-            raise ProjectException("Connections directory does not exist at the specified path '%s'. Please make sure you have a local copy of the project." % (os.path.dirname(path)))
+        if not path is None:
+            if not os.path.exists(path):
+                raise ProjectException("Specified path does not exist: '%s'. Please make sure you have a local copy of the project at the specified path." % path)
+            path = os.path.abspath(path)
+            # if not specified, derive project name from the directory name
+            if not project_name:
+                project_name = os.path.basename(path)
+            path = os.path.join(path, Connections._CONNECTIONS_SUBDIR)
+            if not os.path.exists(path):
+                raise ProjectException("Connections directory does not exist at the specified path '%s'. Please make sure you have a local copy of the project." % (os.path.dirname(path)))
         self.path = path
         aead.register()
-        conn_files = glob.glob(os.path.join(self.path, "*" + Connections._CONNECTIONS_EXTENSION))
 
         self.server = server
         self.project_name = project_name
@@ -66,17 +67,26 @@ class Connections():
         self.macros = macros
         self.__cached_project_primitive = None
         self.__list = []
-        for z in conn_files:
-            with zipfile.ZipFile(z) as zf:
-                with zf.open("Config") as f:
-                    self.__list.append(Connection(os.path.join(Connections._CONNECTIONS_SUBDIR, os.path.basename(z)),
-                                                  json.loads(f.read(), object_pairs_hook=OrderedDict), self))
+        
+        # load connections either from legacy AI Hub repository or from project path
+        if self.path is None:
+            self._check_server("You must either provide a project path ('path' parameter) or a Server object ('server' parameter).")
+            conn_json = self.server._get_connections_info()
+            for c in conn_json:
+                self.__list.append(Connection(c["location"], OrderedDict(server._read_connection_info(c["location"])), self))
+        else:
+            conn_files = glob.glob(os.path.join(self.path, "*" + Connections._CONNECTIONS_EXTENSION))
+            for z in conn_files:
+                with zipfile.ZipFile(z) as zf:
+                    with zf.open("Config") as f:
+                        self.__list.append(Connection(os.path.join(Connections._CONNECTIONS_SUBDIR, os.path.basename(z)),
+                                                      json.loads(f.read(), object_pairs_hook=OrderedDict), self))
         self.__list.sort(key=lambda c: c.name)
 
     def _get_project_primitive(self):
         # project primitive is not expected to change - initialized once, when first needed
         if self.__cached_project_primitive == None:
-            response = self.server.get_project_info(self.project_name)
+            response = self.server._get_project_info(self.project_name)
             content = json.dumps(response["secret"])
             reader = JsonKeysetReader(content)
             keyset_handle = cleartext_keyset_handle.read(reader)
@@ -87,8 +97,8 @@ class Connections():
         if not self.server:
             if _is_docker_based_deployment():
                 self.server = get_server()
-            #else:
-            #    raise ServerException(error_message)
+            else:
+                raise ServerException(error_message)
     
     def __iter__(self):
         return iter(self.__list)
@@ -111,15 +121,15 @@ class Connection():
     Class that represents a single connection.
     """
 
-    def __init__(self, filepath, config, connections):
+    def __init__(self, location, config, connections):
         """
-        Initializes a connection instance based on a path and a config dictionary.
+        Initializes a connection instance based on a location and a config dictionary.
 
-        :param filepath: path to the connection file
+        :param location: path to the connection file in the project or in the AI Hub repository
         :param config: dictionary containing all the connection details; can be directly created from the JSON content of the connection
         :param connections: reference to the parent Connections object
         """
-        self.__filepath = filepath
+        self.__location = location
         self.__config = config
         self.__connections = connections
         self.__name = config["name"]
@@ -150,7 +160,7 @@ class Connection():
     @property
     def values(self):
         """
-        Dictionary with all the connection fields. Injected and encrypted fields are all handled transparently provided that the appropriate information is accessible. Otherwise, an error is thrown for the first problem.
+        Dictionary with all the connection fields. Injected and encrypted fields are all handled transparently provided that the appropriate information is accessible. Otherwise, an error is thrown for the first problem encountered. Note that encrypted values from an AI Hub repository are not available (values will be None) - use AI Hub Vault in this case. When accessing multiple fields, you may want to first create a copy from the returned dictionary to avoid retrieving values stored in AI Hub vault or decrypting values multiple times (all such values are refreshed in each call).
         """
         self.__refresh_dynamic_values()
         return self.__values
@@ -169,7 +179,7 @@ class Connection():
         Quick way to access the first field that probably contains a password, e.g. the field name contains the string password.
         """
         return self.find_first("password")
-
+    
     def find_first(self, *words):
         """
         Returns the value of the first connection parameter that has one of the specified arguments in its key as a substring. Useful for looking up parameters if the key is not known accurately.
@@ -200,11 +210,11 @@ class Connection():
             p["group"] = group
             param_keys.add(p["name"])
             if p["enabled"]:
-                if p["injectorName"] or p["encrypted"]:
+                if ("injectorName" in p and p["injectorName"]) or p["encrypted"]:
                     self.__values[p["name"]] = None
                     self.__lazy_loaded_params.append(p)
                 else:
-                    self.__values[p["name"]] = p["value"]
+                    self.__values[p["name"]] = p["value"] if "value" in p else None
     
     def __refresh_dynamic_values(self):
         if len(self.__lazy_loaded_params) < 1:
@@ -216,8 +226,8 @@ class Connection():
     def __refresh_dynamic_value(self, parameter):
         self.__refresh_vault_cache()
         name = parameter["name"]
-        value = parameter["value"]
-        if parameter["injectorName"]:
+        value = parameter["value"] if "value" in parameter else None
+        if "injectorName" in parameter and parameter["injectorName"]:
             value = self.__injected_value(parameter)
             # when injected, there is no encryption
         elif parameter["encrypted"]:
@@ -226,8 +236,11 @@ class Connection():
 
     def __refresh_vault_cache(self):
         self.__connections._check_server("For accessing a value from the AI Hub Vault, you must provide a Server object.")
-        project_loc = ProjectLocation(self.__connections.project_name, self.__filepath)
-        self.__cached_vault_info = self.__connections.server.get_vault_info(project_loc)
+        if self.__connections.project_name is None:
+            location = self.__location
+        else:
+            location = ProjectLocation(self.__connections.project_name, self.__location)
+        self.__cached_vault_info = self.__connections.server._get_vault_info(location)
     
     def __decrypt(self, value):
         if not value:
