@@ -15,7 +15,7 @@
 # If not, see https://www.gnu.org/licenses/.
 #
 
-__version__ = "9.9.0.0"
+__version__ = "9.9.0.1-dev"
 
 from .core.studio import Studio
 from .core.server import Server
@@ -25,3 +25,5 @@ from .core.scoring import Scoring
 from .core.resources import File
 from .core.resources import RepositoryLocation
 from .core.connections import Connections
+from .core.webservice import route
+from flask import request

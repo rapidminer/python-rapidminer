@@ -19,7 +19,7 @@ import os
 import codecs
 import re
 
-requirements = ["pandas>=1", "requests", "numpy", "zeep", "h5py", "tink"]
+requirements = ["pandas>=1", "requests", "numpy", "zeep", "h5py", "tink", "flask", "ipykernel", "gevent"]
 name = "rapidminer"
 here = os.path.abspath(os.path.dirname(__file__))
 
