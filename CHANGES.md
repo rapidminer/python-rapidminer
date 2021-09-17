@@ -4,6 +4,11 @@ Note that this list is meant to track the main changes and does not provide an e
 
 The first 3 numbers in the version always indicate the RapidMiner platform (Studio and AI Hub) version that the package is meant to be used with. This does not mean that the package is always incompatible with a different platform version. We aim to add explicit error messages when there is an incompatibility between versions, but it is generally recommended to always use the same version of the package and the RapidMiner platform.
 
+### Version 9.10.0.0
+
+* Fixed install problems on Windows and with latest Python versions
+* Replaced `tink` dependency with `cryptography` dependency
+
 ### Version 9.9.0.0
 
 * Added `Connections` class to allow access to connections in projects
