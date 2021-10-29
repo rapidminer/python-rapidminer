@@ -15,7 +15,7 @@
 # If not, see https://www.gnu.org/licenses/.
 #
 
-__version__ = "9.9.0.1-dev"
+__version__ = "9.10.0.1-dev"
 
 from .core.studio import Studio
 from .core.server import Server

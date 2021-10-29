@@ -20,10 +20,8 @@ import glob
 import json
 import zipfile
 from collections import OrderedDict
-from tink import aead
-from tink import cleartext_keyset_handle
-from tink import JsonKeysetReader
 import base64
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from .utilities import ProjectException
 from .utilities import ServerException
 from .utilities import _is_docker_based_deployment
@@ -59,7 +57,6 @@ class Connections():
             if not os.path.exists(path):
                 raise ProjectException("Connections directory does not exist at the specified path '%s'. Please make sure you have a local copy of the project." % (os.path.dirname(path)))
         self.path = path
-        aead.register()
 
         self.server = server
         self.project_name = project_name
@@ -85,12 +82,19 @@ class Connections():
 
     def _get_project_primitive(self):
         # project primitive is not expected to change - initialized once, when first needed
+        # Tink is used on the Server side, but we wanted to avoid it on this side. The Tink Python
+        # package has missing binary releases for newer Python and for Windows generally as well.
+        # Installation from source code runs into various problems.
         if self.__cached_project_primitive == None:
             response = self.server._get_project_info(self.project_name)
-            content = json.dumps(response["secret"])
-            reader = JsonKeysetReader(content)
-            keyset_handle = cleartext_keyset_handle.read(reader)
-            self.__cached_project_primitive = keyset_handle.primitive(aead.Aead)
+            key_first = next(filter(lambda k: k["status"] == "ENABLED", response["secret"]["key"]))
+            key_data = key_first["keyData"]
+            if key_data["typeUrl"] != "type.googleapis.com/google.crypto.tink.AesGcmKey":
+                raise ServerException("Unknown key type is used for encryption: '%s'" % key_data["typeUrl"])
+            key_str = key_data["value"]
+            # secret key from Tink config (skip 2 bytes meta data)
+            key = base64.b64decode(key_str)[2:]
+            self.__cached_project_primitive = (AESGCM(key), key_first["outputPrefixType"])
         return self.__cached_project_primitive
 
     def _check_server(self, error_message):
@@ -246,8 +250,16 @@ class Connection():
         if not value:
             return None
         self.__connections._check_server("This connection has encrypted values. Decrypting them is only supported in case of AI Hub (Server) projects/repositories. For decrypting encrypted values, you must provide a Server object.")
+        decoded = base64.b64decode(value)
+        primitive, output_prefix_type = self.__connections._get_project_primitive()
+        if output_prefix_type == "RAW":
+            iv = decoded[:12]
+            ct = decoded[12:]
+        else:
+            iv = decoded[5:17]
+            ct = decoded[17:]
         # Use key from Server
-        res = self.__connections._get_project_primitive().decrypt(base64.b64decode(value), b'')
+        res = primitive.decrypt(iv, ct, None)
         return res.decode("utf-8")
 
     def __injected_value(self, parameter):

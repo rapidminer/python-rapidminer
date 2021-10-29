@@ -69,14 +69,14 @@ def extract_json(res):
         except:
             return {}
         if "error" in response:
-            str = ""
+            s = ""
             error = response["error"]
             if "type" in error:
-                str += error["type"] + ": "
+                s += error["type"] + ": "
             if "message" in error:
-                str += error["message"]
-            if str == "":
-                str = "Unkown error: " + str(response)
+                s += error["message"]
+            if s == "":
+                s = "Unkown error: " + str(response)
             raise ServerException(str)
     return response
 
