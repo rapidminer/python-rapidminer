@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2021 RapidMiner GmbH
+# Copyright (C) 2018-2024 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -68,9 +68,10 @@ class Connections():
         # load connections either from legacy AI Hub repository or from project path
         if self.path is None:
             self._check_server("You must either provide a project path ('path' parameter) or a Server object ('server' parameter).")
-            conn_json = self.server._get_connections_info()
+            conn_json = self._get_connections_from_project()
             for c in conn_json:
-                self.__list.append(Connection(c["location"], OrderedDict(server._read_connection_info(c["location"])), self))
+                project_location = ProjectLocation(project=self.project_name, path=c['location'])
+                self.__list.append(Connection(c["location"], OrderedDict(server._read_connection_info(project_location.to_string())), self))
         else:
             conn_files = glob.glob(os.path.join(self.path, "*" + Connections._CONNECTIONS_EXTENSION))
             for z in conn_files:
@@ -79,6 +80,16 @@ class Connections():
                         self.__list.append(Connection(os.path.join(Connections._CONNECTIONS_SUBDIR, os.path.basename(z)),
                                                       json.loads(f.read(), object_pairs_hook=OrderedDict), self))
         self.__list.sort(key=lambda c: c.name)
+        
+    def _get_connections_from_project(self):
+        files_in_project = self.server._get_connections_info(self.project_name)
+        connections = []
+        for f in files_in_project:
+            if Connections._CONNECTIONS_EXTENSION in f['name'] :
+                # The full path is returned: project_name/path_in_project, we need the location of the connection in the project
+                conn = { 'location': f['path'][len(self.project_name) + 1:] }
+                connections.append(conn)
+        return connections
 
     def _get_project_primitive(self):
         # project primitive is not expected to change - initialized once, when first needed

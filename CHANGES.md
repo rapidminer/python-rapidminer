@@ -4,6 +4,18 @@ Note that this list is meant to track the main changes and does not provide an e
 
 The first 3 numbers in the version always indicate the RapidMiner platform (Studio and AI Hub) version that the package is meant to be used with. This does not mean that the package is always incompatible with a different platform version. We aim to add explicit error messages when there is an incompatibility between versions, but it is generally recommended to always use the same version of the package and the RapidMiner platform.
 
+Because of multiple reasons (like managing and releasing point of view) from version 10.1.0 we go with the more standardised version numbering. 
+
+### Version 10.1.0
+
+* Introducing new interface for Web Api endpoints
+
+### Version 10.0.0.0
+
+* Added authentication option to `Scoring`
+* Adapted authentication to AI Hub 10.0.0 in all classes
+* Added support for reading `rmhdf5table` files to `Studio`
+
 ### Version 9.10.0.0
 
 * Fixed install problems on Windows and with latest Python versions

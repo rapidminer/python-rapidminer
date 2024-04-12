@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2021 RapidMiner GmbH
+# Copyright (C) 2018-2024 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -312,7 +312,17 @@ class Studio(Connector):
                   "stderr": subprocess.STDOUT,
                   "bufsize": 10}
         params = []
-        params.append(os.path.join(self.studio_home, self.__SCRIPTS_SUBDIR, "rapidminer-batch" + self.__get_script_suffix()))
+        script_path = ''
+        if os.path.isfile(os.path.join(self.studio_home, self.__SCRIPTS_SUBDIR, "rapidminer-batch" + self.__get_script_suffix())):
+            script_path = os.path.join(
+                self.studio_home, self.__SCRIPTS_SUBDIR, "rapidminer-batch" + self.__get_script_suffix())
+        elif os.path.isfile(os.path.join(self.studio_home, self.__SCRIPTS_SUBDIR, "ai-studio-batch" + self.__get_script_suffix())):
+            script_path = os.path.join(self.studio_home, self.__SCRIPTS_SUBDIR,
+                                       "ai-studio-batch" + self.__get_script_suffix())
+        else:
+            raise StudioException(
+                "Cannot find the required script in the RapidMiner/AI Studio installation directory.")
+        params.append(script_path)
         self.__append_param(params, "rmx_python_scripting:com.rapidminer.extension.pythonscripting.launcher.ExtendedCmdLauncher", prefix="-C")
         self.__append_param(params, __version__, prefix="-V")
         if (process is not None):
@@ -355,15 +365,17 @@ class Studio(Connector):
             try:
                 self.__start_printer_thread(p)
                 p.wait()
-                if not threadid in self.__rapidminer_version or not Version(self.__rapidminer_version[threadid]).is_at_least(Version("9.5.0")):
+                if not threadid in self.__rapidminer_version:
+                    raise StudioException("Error while starting Studio.")
+                if not Version(self.__rapidminer_version[threadid]).is_at_least(Version("9.5.0")):
                     raise VersionException("RapidMiner Studio", "9.5.0 or newer")
                 if not threadid in self.__last_exit_code__ or self.__last_exit_code__[threadid] != 0:
                     if threadid in self.__last_exception_msg__:
-                        raise StudioException("Error while executing studio: " + self.__last_exception_msg__[threadid])
+                        raise StudioException("Error while executing Studio: " + self.__last_exception_msg__[threadid])
                     elif threadid in self.__last_exit_code__:
-                        raise StudioException("Error while executing studio - unknown error. (error code: " + str(self.__last_exit_code__) + ")")
+                        raise StudioException("Error while executing Studio - unknown error. (error code: " + str(self.__last_exit_code__) + ")")
                     else:
-                        raise StudioException("Error while executing studio - unknown error.")
+                        raise StudioException("Error while executing Studio - unknown error.")
             finally:
                 p.stdout.close()
         finally:

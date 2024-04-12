@@ -19,7 +19,7 @@ import os
 import codecs
 import re
 
-requirements = ["pandas>=1", "requests", "numpy", "zeep", "h5py", "cryptography"]
+requirements = ["pandas>=1", "requests", "numpy", "zeep", "h5py", "cryptography", "pyjwt"]
 name = "rapidminer"
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -49,7 +49,7 @@ except FileNotFoundError:
 
 # Replaces links to other markdown files with github links to make them work on PyPi
 github_baseurl = "https://github.com/rapidminer/python-rapidminer/blob/" + version + "/"
-for cname in "Studio.md", "Server.md", "Scoring.md", "Project.md", "Connections.md":
+for cname in "Studio.md", "Server.md", "Scoring.md", "Project.md", "Connections.md", "WebApi.md":
     readme = readme.replace("docs/api/" + cname, github_baseurl + "docs/api/" + cname)
 for pyname in "studio_examples.ipynb", "server_examples.ipynb", "project_examples.ipynb":
     readme = readme.replace("examples/" + pyname, github_baseurl + "examples/" + pyname)

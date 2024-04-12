@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2021 RapidMiner GmbH
+# Copyright (C) 2018-2024 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -17,22 +17,49 @@
 import pandas as pd
 import requests
 import json
+from .oauthenticator import OAuthenticator
 from .utilities import ServerException
 from .utilities import extract_json
+from .config import API_CONTEXT
+from .config import AUTHENTICATION_TYPE_OAUTH
+from .config import AUTHENTICATION_TYPE_BASIC
+import base64
+
 
 class Scoring:
     """
-    Class that allows you to use the Real-Time Scoring agent directly on a dataset.
+    Class that allows you to use the Real-Time Scoring agent directly on a dataset with authentication available. 
+    You can authenticate via the basic authentication method and via OAuth2, Keycloak server.
     """
 
-    def __init__(self, hostname, endpoint):
+    def __init__(self, hostname, endpoint, authentication=None, username=None, password=None, authentication_server=None, realm=None, client_id=None):
         """
         Arguments:
-        :param hostname: Server url (together with the port)
-        :param endpoint: scoring service endpoint to use
+        :param hostname: Server url (together with the port).
+        :param endpoint: scoring service endpoint to use.
+        :param authentication: optional, it can have two different values "basic" or "oauth".
+        :param username: optional username for authentication in case of both authentication method.
+        :param password: optional password for authentication in case of both authentication method.
+        :param authentication_server: Authentication Server url (together with the port).
+        :param realm: defines the Realm in case of OAuth authentication.
+        :param client_id: defines the client in the Realm in case of OAuth authentication.
         """
-        self.url = hostname + "/services/" + endpoint
-
+        if hostname.endswith("/"):
+            hostname = hostname[:-1]
+        if authentication and authentication == AUTHENTICATION_TYPE_BASIC:
+            self.authentication = authentication
+            self.username = username
+            self.__password = password
+        elif authentication and authentication == AUTHENTICATION_TYPE_OAUTH:
+            self.authentication = authentication
+            self.oauthenticator = OAuthenticator(url=authentication_server, realm=realm,
+                                                 client_id=client_id, username=username, password=password)
+        elif authentication:
+            raise ValueError(f'The authentication parameter is defined then the value must be {AUTHENTICATION_TYPE_BASIC} or {AUTHENTICATION_TYPE_OAUTH}.')
+        else:
+            self.authentication = None
+        self.url = hostname + "/" + API_CONTEXT + "/services/" + endpoint
+    
     def predict(self, dataframe):
         """
         Calls the Real-Time Scoring agent on the specified dataset and returns the result.
@@ -43,7 +70,21 @@ class Scoring:
         """
         df_json = dataframe.to_json(orient="table")
 
-        headers = { 'Content-type': 'application/json' }
+        if self.authentication == AUTHENTICATION_TYPE_BASIC and self.username and self.__password:
+            userAndPass = base64.b64encode(bytes(self.username + ":" + self.__password, "utf-8")).decode("ascii")
+            headers = { 
+                    'Content-type': 'application/json',
+                    'Authorization' : 'Basic %s' %  userAndPass
+            }
+        elif self.authentication == AUTHENTICATION_TYPE_OAUTH and self.oauthenticator:
+            headers = { 
+                    'Content-type': 'application/json',
+                    'Authorization' : 'Bearer %s' %  self.oauthenticator.get_token()
+            }
+        else:
+            headers = { 
+                    'Content-type': 'application/json'
+            }
         r = requests.post(self.url, data=df_json, headers=headers)
         response = extract_json(r)
         if r.status_code != 200:

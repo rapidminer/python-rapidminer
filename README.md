@@ -4,33 +4,48 @@ This Python package allows you to interact with RapidMiner Studio and AI Hub. Yo
 
 ## Table of contents
 
-- [Requirements](#requirements)
-- [Known current limitations](#known-current-limitations)
-- [Overview](#requirements)
-- [Installation](#installation)
-- [Project](#project)
-- [Connections](#connections)
-- [Studio](#studio)
-- [Server](#server)
-- [Scoring](#scoring)
+- [RapidMiner Python package](#rapidminer-python-package)
+  - [Table of contents](#table-of-contents)
+  - [Requirements](#requirements)
+  - [Known current limitations](#known-current-limitations)
+  - [Overview](#overview)
+  - [Installation](#installation)
+  - [Project](#project)
+        - [Reading ExampleSet](#reading-exampleset)
+        - [Writing ExampleSet](#writing-exampleset)
+        - [Running a process](#running-a-process)
+  - [Connections](#connections)
+  - [Studio](#studio)
+        - [Reading ExampleSet](#reading-exampleset-1)
+        - [Writing ExampleSet](#writing-exampleset-1)
+        - [Running a process](#running-a-process-1)
+  - [Server](#server)
+    - [Usage of Server API](#usage-of-server-api)
+    - [Running a process](#running-a-process-2)
+    - [Getting information about projects, queues and connections](#getting-information-about-projects-queues-and-connections)
+      - [Projects](#projects)
+      - [Connections](#connections-1)
+      - [Queues](#queues)
+  - [Web Api Endpoints](#web-api-endpoints)
+  - [Scoring](#scoring)
 
 ## Requirements
 
-* RapidMiner Studio *9.7.0* for Studio class
-* RapidMiner AI Hub *9.7.0* for Server class
-* Python Scripting extension *9.7.0* or later installed for both Studio and RapidMiner AI Hub, download it from the [Marketplace](https://marketplace.rapidminer.com/UpdateServer/faces/product_details.xhtml?productId=rmx_python_scripting)
+* RapidMiner Studio *2024.0* (*10.4.0*) for Studio class
+* RapidMiner AI Hub *2024.0* (*10.4.0*) for Server class
+* Python Scripting extension *10.0.0* or later installed for both Studio and Server, download it from the [Marketplace](https://marketplace.rapidminer.com/UpdateServer/faces/product_details.xhtml?productId=rmx_python_scripting)
 
 ## Known current limitations
 
 * Python version: 
-  * Extensive tests were only carried out using *Python 3.7*, but earlier versions are expected to work as well.
+  * Extensive tests were only carried out using *Python 3.10.9*, but earlier versions are expected to work as well.
   * Python 2 is not supported.
 * RapidMiner Studio and AI Hub processes guarantee reproducibility. That means you should always get the same result after a version update. The same feature *cannot be guaranteed* when using this Python library (the library depends on other libraries that are not in our control).
 * RapidMiner AI Hub with [SAML authentication](https://redirects.rapidminer.com/web/saml-authentication) is not supported.
 
 ## Overview
 
-Both Studio and Server classes provide a read and a write method for reading / writing data and other objects, and a run method to run processes. The method signatures are the same, with somewhat different extra parameters. To work with versioned projects, a feature that arrives with RapidMiner AI Hub 9.7.0, use the Project class that provides read and write methods to the data file format used in them.
+Studio class provides a read and a write method for reading / writing data and other objects, and both Studio and Server classes provide a run method to run processes. To work with versioned projects, use the Project class that provides read and write methods to the data file format used in them.
 
 Studio class requires a local Studio installation and is suitable in the following cases:
 * Implementing certain data science steps in Python using your favorite IDE or notebook implementation. You may even use the resulting code afterwards in a RapidMiner process within an *Execute Python* operator.
@@ -132,7 +147,7 @@ myhost = myconn.find_first("host")
 myport = connections[0].values["port"]
 ```
 
-Note when reading connections directly from an AI Hub repository, encrypted values are not available (values are None). You are advised to use AI Hub Vault for these values, or move those connections into projects.
+Note when reading connections directly from an AI Hub project, encrypted values are not available (values are None). You are advised to use AI Hub Vault for these values, or clone the project with the connection in it.
 
 ## Studio
 
@@ -181,68 +196,123 @@ You will get the results as `pandas` `DataFrames`. You can also define inputs, a
 
 ## Server
 
-With `Server` class, you can directly connect to a local or remote RapidMiner AI Hub instance without the need for any local RapidMiner (Studio) installation. You can read data from and write data to the remote repository and you can execute processes using the scalable Job Agent architecture. In this section, we show you some examples on how to read and write repository data and run processes. For more advanced scenarios see the included [IPython notebook](examples/server_examples.ipynb) and the [documentation of the `Server` class](docs/api/Server.md).
-
-### Installation of Server API
-
-The `Server` class requires a web service backend to be installed on RapidMiner AI Hub. This is done automatically on the first instantiation of the Server class. The repository folder `/shared` is used by default to store the backend process. This folder exists and is accessible by anyone starting from RapidMiner Server 9.6.0.
-
-`Server` class instantiation can be fully automated (thus, no need for user input), if you specify `url`, `username` and `password` parameters.
-
-On the RapidMiner AI Hub web UI you can see the installed web service backend (*Processes*->*Web Services*). It has the name *Repository Service* by default, but you can change that with the optional parameter of `Server` class named `webservice`. You can change the process path location by setting 'processpath', but you need to make sure that it will be executable by all users of the Server API. If the web service is deleted, the next `Server` instantiation will re-create it.
+With `Server` class, you can directly connect to a local or remote RapidMiner AI Hub instance without the need for any local RapidMiner (Studio) installation. You can execute processes using the scalable Job Agent architecture. In this section, we show you some examples on how to run processes. For more advanced scenarios see the included [IPython notebook](examples/server_examples.ipynb) and the [documentation of the `Server` class](docs/api/Server.md).
 
 ### Usage of Server API
 
 To create a `Server` `Connector` object, run the following code:
 
 ```python
-connector = rapidminer.Server("https://myserver.mycompany.com:8080", username="myrmuser")
+connector = rapidminer.Server("https://myserver.mycompany.com:8080")
 ```
 
-where you replace `"https://myserver.mycompany.com:8080"` with the url of your RapidMiner AI Hub instance and `"myrmuser"` with your username.
-
-##### Reading ExampleSet
-
-Once you have a connector instance, you can read a RapidMiner ExampleSet in Python by running the following line:
+It will ask you for further input to be able to authenticate. It is also possible to configure it using the constructor arguments: 
 
 ```python
-df = connector.read_resource("/home/myrmuser/data/mydata")
+connector = rapidminer.Server("https://myserver.mycompany.com:8080", username="myrmuser", password="myrmpassword", authentication_server="http:///myserver.mycompany.com:8081", realm="MyCompanyRealm", client_id="mycompany-rapidminer-server")
 ```
 
-You can also read the latest version of a data set from a versioned project by running the following line:
+where you replace `"https://myserver.mycompany.com:8080"` with the url of your RapidMiner AI Hub instance, `"myrmuser"` with your username, `"myrmpassword"` with your password, `"http:///myserver.mycompany.com:8081"` with the url of your KeyCloak server, `"MyCompanyRealm"` with your company Realm in the KeyCloak server, `"mycompany-rapidminer-server"` with the client id which has the rights to authenticate in.
+
+### Running a process
+
+You may want to run a process that resides in a versioned project. Note that inputs and outputs are not allowed, as the process can only directly read from the project and potentially write back using an automatic commit and push. To run the latest version of a process in project, use the following code:
 
 ```python
-df = connector.read_resource("data/mydata", project="myproject")
+process = ProjectLocation('test-project', 'test-process.rmp')
+connector = rapidminer.Server("https://myserver.mycompany.com:8080", username="myrmuser", password="myrmpassword", authentication_server="http:///myserver.mycompany.com:8081", realm="MyCompanyRealm", client_id="mycompany-rapidminer-server")
+connector.run_process(path=process)
 ```
 
-The resulting `df` in both cases is a `pandas` `DataFrame` object, which you can use in the conventional way.
-
-##### Writing ExampleSet
-
-You can save any `pandas` `DataFrame` object to the RapidMiner AI Hub repository with the following command:
+You can add the `project` name and `path` to the process to the run_process method too. You can also define `macros` and the `queue`, like the following way:
 
 ```python
-connector.write_resource(df, "/home/myrmuser/data/myresult")
+connector.run_process(project='test-project', path='test-process.rmp', queue="default", macros={"sample_size" : 100})
 ```
 
-where `df` is the `DataFrame` object you want to write to the repository, and `"/home/myrmuser/data/myresult"` is the location where you want to store it.
+### Getting information about projects, queues and connections
 
-If you want to write to a versioned project, use the Project class' write method to write to the local disk first (after cloning the project locally), then use git commit and push to publish your changes to RapidMiner AI Hub.
+#### Projects
 
-##### Running a process
-
-To run a process execute the following line:
+You can also get the available projects in the Server the following way:
 
 ```python
-df = connector.run_process("/home/myrmsuer/process/transform_data", inputs=df)
+connector.get_projects()
 ```
 
-You will get the results as `pandas` `DataFrames`. You can also define multiple inputs, and other parameters. For more examples, see the [Server examples notebook](examples/server_examples.ipynb).
+This method returns a JSON array of objects representing each repository with its properties.
 
-You may want to run a process that resides in a versioned project. Note that in this case, inputs and outputs are not allowed, as the process can only directly read from the project and potentially write back using an automatic commit and push. To run the latest version of a process in project, use the following line:
+#### Connections
+
+You can also get the available connections in a given project:
 
 ```python
-df = connector.run_process("processes/myprocess", project="myproject")
+connector.get_connections('project')
+```
+
+It returns a Connections object listing connections from the AI Hub project.
+
+#### Queues
+
+You can also get the queues in a Server:
+
+```python
+connector.get_queues()
+```
+
+It returns a JSON array of objects representing each queue with its properties.
+
+
+## Web Api Endpoints
+
+As AiHub Version 10.2 introduced a new possibility of having deployed endpoints next to the Real-Time-Scoring AiHub had offered, rapidminer package also introduces a new interface for that feature from version 10.4.
+
+You can read the details of the advantages having Web Api endpoints and check the differences with the already existing Real-Time-Scoring at [Web Api Endpoints](https://docs.rapidminer.com/latest/hub/endpoints/index.html)
+
+The WebApi class allows you to easily score a deployed service. You only need to provide the RapidMiner AI Hub URL and the particular service endpoint to create a class instance. After that, you can use the predict method to do scoring and get the result in pandas DataFrame format, or in JSON format (depending on the value of return_json flag). For instructions on how to deploy Web Api endpoint on RapidMiner AI Hub, please refer to its documentation.
+
+```python
+data = [
+  {
+   "a1": 5.1,
+   "a2": 3.5,
+   "a3": 1.4,
+   "a4": 0.2
+  }
+ ]
+macros = {
+    'macro1': 1,
+    'macro2': 'value'
+}
+wa = rapidminer.WebApi("http://myserver.mycompany.com:8090", "score-sales/score1")
+prediction = wa.predict(data, macros, return_json=True)
+```
+
+where the Web Api endpoint is at `"score-sales/score1"` that can be applied to pandas DataFrame `data`, or list of JSON objects, with macros as parameters, and the resulting `prediction` is a pandas DataFrame as well (or JSON object). You can also define the Web Api group by defining the `web_api_group` parameter, by default it uses the `DEFAULT` one.
+
+It can work without any authentication. However, there are three different options for authentication. It depends on the endpoint configuration, but the three different method is the basic authentication, the other one is the OAuth2 authentication with Keycloak and the last one is Long Living Token.
+
+If basic authentication is configured, it is needed to add three extra arguments to define the `authentication` method, `username` and `password`.
+The value of the authentication parameter in this case is `"basic"`.
+
+```python
+wa = rapidminer.WebApi("http://myserver.mycompany.com:8090", "score-sales/score1", authentication='basic', username="my_user", password="my_password")
+prediction = wa.predict(data)
+```
+
+If the oauth authentication is configured, it is needed to add three more extra arguments compared to the basic authentication to define the `authentication server`, the `realm` and the `client-id`.
+The value of the authentication parameter in this case is `"oauth"`.
+
+```python
+wa = rapidminer.WebApi("http://myserver.mycompany.com:8090", "score-sales/score1", authentication='oauth', username="my_user", password="my_password", authentication_server='http://auth-server.mycompany.com:8081', realm='MyCompanyRealm', client_id='my-client')
+prediction = wa.predict(data)
+```
+
+If the apitoken authentication is configured, it is needed to add your apitoken. The value of the authentication parameter in this case is `"apitoken"`.
+
+```python
+wa = rapidminer.WebApi("http://myserver.mycompany.com:8090", "score-sales/score1", authentication='apitoken', apitoken="my_token")
+prediction = wa.predict(data)
 ```
 
 ## Scoring
@@ -254,6 +324,22 @@ sc = rapidminer.Scoring("http://myserver.mycompany.com:8090", "score-sales/score
 prediction = sc.predict(df)
 ```
 
-where the scoring endpoint is at `"score-sales/score1"` that can be applied to the dataset `df`, and the resulting `prediction` is a `pandas` `DataFrame` object. You can find the `Scoring` class [documentation here](docs/api/Scoring.md).
+where the scoring endpoint is at `"score-sales/score1"` that can be applied to the dataset `df`, and the resulting `prediction` is a `pandas` `DataFrame` object. You can find the `Scoring` class [documentation here](docs/api/Scoring.md). Note that the scoring endpoint should not have a leading `"/"`.
 
+It can work without any authentication. However, there are two different options for authentication. It depends on the RTS server configuration, but the two different method is the basic authentication and the other one is the OAuth2 authentication with Keycloak.
 
+If basic authentication is configured, it is needed to add three extra arguments to define the `authentication` method, `username` and `password`.
+The value of the authentication parameter in this case is `"basic"`.
+
+```python
+sc = rapidminer.Scoring("http://myserver.mycompany.com:8090", "score-sales/score1", authentication='basic', username="your_user", password="your_password")
+prediction = sc.predict(df)
+```
+
+If the oauth authentication is configured, it is needed to add three more extra arguments compared to the basic authentication to define the `authentication server`, the `realm` and the `client-id`.
+The value of the authentication parameter in this case is `"oauth"`.
+
+```python
+sc = rapidminer.Scoring("http://myserver.mycompany.com:8090", "score-sales/score1", authentication='basic', username="your_user", password="your_password", authentication_server='http://auth-server.mycompany.com:8081', realm='MyCompanyRealm', client_id='real-time-scoring-client')
+prediction = sc.predict(df)
+```
