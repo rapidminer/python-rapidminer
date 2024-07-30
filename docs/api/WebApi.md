@@ -16,9 +16,9 @@ WebApi(hostname,
             authentication=None,
             username=None,
             password=None,
+            client_secret=None,
+            offline_token=None,
             authentication_server=None,
-            realm=None,
-            client_id=None,
             apitoken=None)
 ```
 
@@ -27,11 +27,11 @@ Arguments:
 - `endpoint`: endpoint to use.
 - `web_api_group`: defines the Web API Group of the deployment.
 - `authentication`: optional, it can have two different values "basic" or "oauth" or "apitoken".
-- `username`: optional username for authentication in case of both authentication method.
-- `password`: optional password for authentication in case of both authentication method.
+- `username`: optional username for authentication in case of "basic" authentication method.
+- `password`: optional password for authentication in case of "basic" authentication method.
 - `authentication_server`: Authentication Server url (together with the port).
-- `realm`: defines the Realm in case of OAuth authentication.
-- `client_id`: defines the client in the Realm in case of OAuth authentication.
+- `client_secret`: Client secret for OAuth authentication via a non-public keycloak client
+- `offline_token`: Offline token for authentication acquired via the /get-token endpoint
 - `apitoken`: Long Living Token.
 
 
@@ -43,9 +43,13 @@ WebApi.predict(data=None, macros=None, return_json=False)
 Calls the Web Api endpoint on the specified dataset and macros and returns the result.
 
 Arguments:
-- `dataframe`: pandas DataFrame. or list of JSON objects.
+- `dataframe`: pandas DataFrame, or list of JSON objects.
 - `macros`: dictionary.
 - `return_json`: if it is set to True it will return the response data and not trying to convert it to pandas DataFrame.
 
+
+
 Returns:
+
+
 - the result as pandas DataFrame, or a list of JSON objects.

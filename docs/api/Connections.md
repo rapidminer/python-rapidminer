@@ -4,6 +4,9 @@
 
 ## Connections
 
+Class for using connections from a Project or Repository.
+
+
 
 ```python
 Connections(path='.',

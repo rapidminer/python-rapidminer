@@ -31,6 +31,7 @@ import warnings
 import logging
 import os
 from pathlib import Path
+from typing import Optional
 import json
 
 from .. import __version__
@@ -52,65 +53,57 @@ class Server(Connector):
     """
     __POLL_INTERVAL_SECONDS = 6
 
-    def __init__(self, url=None, authentication_server=None, username=None, password=None, realm=None,
-                 client_id=None, verifySSL=True, logger=None, loglevel=logging.INFO):
+    def __init__(self, url=None, authentication_server=None, client_secret=None,
+                 offline_token=None, verifySSL=True, logger=None, loglevel=logging.INFO):
         """
         Initializes a new connector to a local or remote Rapidminer Server instance.
 
         Arguments:
         :param url: Server url path (hostname and port as well)
         :param authentication_server: Authentication Server url (together with the port).
-        :param username: optional username for authentication.
-        :param password: optional password for authentication.
-        :param realm: defines the Realm in case of OAuth authentication.
-        :param client_id: defines the client in the Realm.
-        :param verifySSL: either a boolean, in which case it controls whether we verify the server's TLS certificate, or a string, in which case it must be a path to a CA bundle to use. Default value is True.
-        :param logger: a Logger object to use. By default a very simple logger is used, with INFO level, logging to stdout.
+        :param client_secret: Client secret for OAuth authentication via a non-public keycloak client
+        :param offline_token: Offline token for authentication acquired via the /get-token endpoint
+        :param verifySSL: Either a boolean to control whether the server's TLS certificate is verified, 
+                      or a string as a path to a CA bundle. Default is True.
+        :param logger: A Logger object to use. By default, a simple logger with INFO level logging to stdout is used.
         :param loglevel: the loglevel, as an int value. Common values are defined in the standard logging module. Only used, if logger is not defined.
         """
         super(Server, self).__init__(logger, loglevel)
-        # URL of the Rapidminer Server
-        if not url:
-            if "PUBLIC_URL" in os.environ:
-                url = os.environ["PUBLIC_URL"]
-            else:
-                raise ValueError("The url can not be empty!")
-        if url.endswith("/"):
-            url = url[:-1]
-        self.server_url = url
+        
+        self.server_url = self._get_server_url(url)
         self.__verifySSL = verifySSL
         self.__user_agent = f"RapidMiner Python Package {str(__version__)}"
+
         if _is_docker_based_deployment():
             # If there are JUPYTERHUB infos use them, ["JUPYTERHUB_API_TOKEN", "JUPYTERHUB_API_URL", "JUPYTERHUB_USER"]
             self.oauthenticator = OAuthenticator(is_docker_based=True)
         else:
-            # if there are no JUPYTERHUB infos ["JUPYTERHUB_API_TOKEN", "JUPYTERHUB_API_URL", "JUPYTERHUB_USER"], try to connect to Keycloak
-            if authentication_server is None or realm is None or client_id is None:
-                self.log(
-                    "Incomplete authentication configuration, trying to fetch it from the server.")
-                auth_info = self.__get_auth_info()
-                if auth_info:
-                    authentication_server = (
-                        auth_info['authUrl'] if authentication_server is None else authentication_server)
-                    realm = (auth_info['realm'] if realm is None else realm)
-                    client_id = (auth_info['clientId'] if client_id is None else client_id)
-            # RapidMiner Server Username
-            if username is None:
-                username = input('Username: ')
-            self.username = username
-            # RapidMiner Server Password
-            if password is None:
-                password = getpass.getpass(prompt='Password: ')
-            if authentication_server is None:
-                authentication_server = input('Authentication server: ')
-            if realm is None:
-                realm = input('Realm: ')
-            if client_id is None:
-                client_id = input('Client: ')
-            self.oauthenticator = OAuthenticator(url=authentication_server, realm=realm, username=username,
-                                                 password=password, client_id=client_id)
+            self.oauthenticator = self._initialize_oauthenticator(authentication_server, client_secret, offline_token)
 
         self.__connect()
+
+    def _get_server_url(self, url: Optional[str]) -> str:
+        """Retrieve the server URL from parameters or environment variables."""
+        if not url:
+            url = os.environ.get("PUBLIC_URL")
+            if not url:
+                url = self._prompt_for_input('Please provide your AI Hub server url: ')
+                if not url:
+                    raise ValueError("The URL cannot be empty!")
+        return url.rstrip('/')
+    
+    def _initialize_oauthenticator(self, authentication_server: Optional[str], 
+                                   client_secret: Optional[str], offline_token: Optional[str]) -> OAuthenticator:
+        """Initialize the OAuthenticator with the necessary parameters coming from the user for offline_token authentication."""
+        authentication_server = authentication_server or self._prompt_for_input('Please provide your Authentication server URL: ')
+        offline_token = offline_token or self._prompt_for_input('Please provide the offline token that can be found at your <Ai Hub url>/get-token endpoint: ')
+        client_secret = client_secret or self._prompt_for_input('Provide client_secret for token-tool client that can be found at your <Ai Hub url>/get-token endpoint: ')
+
+        return OAuthenticator(url=authentication_server, realm='master', client_id='token-tool', 
+                            client_secret=client_secret, offline_token=offline_token)
+    
+    def _prompt_for_input(self, prompt_message):
+        return input(prompt_message)
 
     ####################
     # Public functions #

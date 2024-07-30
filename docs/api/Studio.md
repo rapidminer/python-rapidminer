@@ -3,6 +3,9 @@
 
 
 ## Studio
+```python
+Studio(self, logger=None, loglevel=logging.INFO)
+```
 
 Class for using a locally installed RapidMiner Studio instance. You can read from and write to the repositories defined in Studio (and use even remote repositories this way) and you can execute processes.
 
@@ -36,7 +39,11 @@ Reads one or more resources from the given repository locations / files
 Arguments:
 - `path`: the path(s) to the resource(s). Multiple paths can be specified as list or tuple. A path can be a string, in that case it is interpreted as a repository location. By using rapidminer.File and rapidminer.RepositoryLocation objects, you can specify explicitly whether you want to use local files or RapidMiner repository entries.
 
+
+
 Returns:
+
+
 - the resource(s) as pandas DataFrame(s), a pickle-able python object(s) or a file-like object(s). If multiple inputs are specified, the same number of inputs will be returned, as a tuple of objects.
 
 
@@ -65,5 +72,9 @@ Arguments:
 - `macros`: optional dict that sets the macros in the process context according to the key-value pairs, e.g. macros={"macro1": "value1", "macro2": "value2"}
 - `operator`: the name of the RapidMiner operator of the process to execute. If None (default) the whole process is executed.
 
+
+
 Returns:
+
+
 - the results of the RapidMiner process. It can be None, or a single object, or a tuple. One result may be a pandas DataFrame, a pickle-able python object or a file-like object.

@@ -23,23 +23,27 @@ from .utilities import extract_json
 from .config import API_CONTEXT
 from .config import AUTHENTICATION_TYPE_OAUTH
 from .config import AUTHENTICATION_TYPE_BASIC
+from .config import AUTHENTICATION_TYPE_OAUTH_OFFLINE_TOKEN
 import base64
 
 
 class Scoring:
     """
-    Class that allows you to use the Real-Time Scoring agent directly on a dataset with authentication available. 
+    Class that allows you to use the Real-Time Scoring agent directly on a dataset with authentication available.
     You can authenticate via the basic authentication method and via OAuth2, Keycloak server.
     """
 
-    def __init__(self, hostname, endpoint, authentication=None, username=None, password=None, authentication_server=None, realm=None, client_id=None):
+    def __init__(self, hostname, endpoint, authentication=None, username=None, password=None,
+                 client_secret=None, offline_token=None, authentication_server=None, realm=None, client_id=None):
         """
         Arguments:
         :param hostname: Server url (together with the port).
         :param endpoint: scoring service endpoint to use.
-        :param authentication: optional, it can have two different values "basic" or "oauth".
+        :param authentication: optional, it can have three different values "basic" or "oauth" or "oauth_token".
         :param username: optional username for authentication in case of both authentication method.
         :param password: optional password for authentication in case of both authentication method.
+        :param client_secret: Client secret for OAuth authentication via a non-public keycloak client, used with "oauth_token" authentication
+        :param offline_token: Offline token for authentication acquired via the /get-token endpoint, used with "oauth_token" authentication
         :param authentication_server: Authentication Server url (together with the port).
         :param realm: defines the Realm in case of OAuth authentication.
         :param client_id: defines the client in the Realm in case of OAuth authentication.
@@ -54,12 +58,18 @@ class Scoring:
             self.authentication = authentication
             self.oauthenticator = OAuthenticator(url=authentication_server, realm=realm,
                                                  client_id=client_id, username=username, password=password)
+        elif authentication and authentication == AUTHENTICATION_TYPE_OAUTH_OFFLINE_TOKEN:
+            self.authentication = authentication
+            self.oauthenticator = OAuthenticator(url=authentication_server, realm='master',
+                                                 client_id='token-tool', client_secret=client_secret, offline_token=offline_token)
         elif authentication:
-            raise ValueError(f'The authentication parameter is defined then the value must be {AUTHENTICATION_TYPE_BASIC} or {AUTHENTICATION_TYPE_OAUTH}.')
+            raise ValueError(f'The authentication parameter is defined then the value must be '
+                             f'{AUTHENTICATION_TYPE_BASIC} or {AUTHENTICATION_TYPE_OAUTH} or '
+                             f'{AUTHENTICATION_TYPE_OAUTH_OFFLINE_TOKEN}.')
         else:
             self.authentication = None
         self.url = hostname + "/" + API_CONTEXT + "/services/" + endpoint
-    
+
     def predict(self, dataframe):
         """
         Calls the Real-Time Scoring agent on the specified dataset and returns the result.
@@ -72,18 +82,18 @@ class Scoring:
 
         if self.authentication == AUTHENTICATION_TYPE_BASIC and self.username and self.__password:
             userAndPass = base64.b64encode(bytes(self.username + ":" + self.__password, "utf-8")).decode("ascii")
-            headers = { 
-                    'Content-type': 'application/json',
-                    'Authorization' : 'Basic %s' %  userAndPass
+            headers = {
+                'Content-type': 'application/json',
+                'Authorization': 'Basic %s' % userAndPass
             }
-        elif self.authentication == AUTHENTICATION_TYPE_OAUTH and self.oauthenticator:
-            headers = { 
-                    'Content-type': 'application/json',
-                    'Authorization' : 'Bearer %s' %  self.oauthenticator.get_token()
+        elif (self.authentication == AUTHENTICATION_TYPE_OAUTH or self.authentication == AUTHENTICATION_TYPE_OAUTH_OFFLINE_TOKEN) and self.oauthenticator:
+            headers = {
+                'Content-type': 'application/json',
+                'Authorization': 'Bearer %s' % self.oauthenticator.get_token()
             }
         else:
-            headers = { 
-                    'Content-type': 'application/json'
+            headers = {
+                'Content-type': 'application/json'
             }
         r = requests.post(self.url, data=df_json, headers=headers)
         response = extract_json(r)

@@ -31,22 +31,23 @@ import base64
 
 class WebApi:
     """
-    Class that allows you to use the Web Api endpoints on a dataset with authentication available. 
+    Class that allows you to use the Web Api endpoints on a dataset with authentication available.
     You can authenticate via the basic authentication method and via OAuth2, Keycloak server.
     """
 
-    def __init__(self, hostname, endpoint, web_api_group='DEFAULT', authentication=None, username=None, password=None, authentication_server=None, realm=None, client_id=None, apitoken=None):
+    def __init__(self, hostname, endpoint, web_api_group='DEFAULT', authentication=None, username=None, password=None,
+                 client_secret=None, offline_token=None, authentication_server=None, apitoken=None):
         """
         Arguments:
         :param hostname: Server url (together with the port).
         :param endpoint: endpoint to use.
         :param web_api_group: defines the Web API Group of the deployment.
         :param authentication: optional, it can have two different values "basic" or "oauth" or "apitoken".
-        :param username: optional username for authentication in case of both authentication method.
-        :param password: optional password for authentication in case of both authentication method.
+        :param username: optional username for authentication in case of "basic" authentication method.
+        :param password: optional password for authentication in case of "basic" authentication method.
         :param authentication_server: Authentication Server url (together with the port).
-        :param realm: defines the Realm in case of OAuth authentication.
-        :param client_id: defines the client in the Realm in case of OAuth authentication.
+        :param client_secret: Client secret for OAuth authentication via a non-public keycloak client
+        :param offline_token: Offline token for authentication acquired via the /get-token endpoint
         :param apitoken: Long Living Token.
         """
         if hostname.endswith("/"):
@@ -57,8 +58,8 @@ class WebApi:
             self.__password = password
         elif authentication and authentication == AUTHENTICATION_TYPE_OAUTH:
             self.authentication = authentication
-            self.oauthenticator = OAuthenticator(url=authentication_server, realm=realm,
-                                                 client_id=client_id, username=username, password=password)
+            self.oauthenticator = OAuthenticator(url=authentication_server, realm='master',
+                                                 client_id='token-tool', client_secret=client_secret, offline_token=offline_token)
         elif authentication and apitoken and authentication == AUTHENTICATION_LONG_LIVING_TOKEN:
             self.authentication = authentication
             self.token = apitoken
@@ -88,7 +89,7 @@ class WebApi:
                 'Content-type': 'application/json',
                 'Authorization': 'Basic %s' % userAndPass
             }
-        elif self.authentication == AUTHENTICATION_TYPE_OAUTH and self.oauthenticator:
+        elif (self.authentication == AUTHENTICATION_TYPE_OAUTH) and self.oauthenticator:
             headers = {
                 'Content-type': 'application/json',
                 'Authorization': 'Bearer %s' % self.oauthenticator.get_token()

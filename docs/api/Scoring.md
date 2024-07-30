@@ -15,6 +15,8 @@ Scoring(hostname,
              authentication=None,
              username=None,
              password=None,
+             client_secret=None,
+             offline_token=None,
              authentication_server=None,
              realm=None,
              client_id=None)
@@ -23,9 +25,11 @@ Scoring(hostname,
 Arguments:
 - `hostname`: Server url (together with the port).
 - `endpoint`: scoring service endpoint to use.
-- `authentication`: optional, it can have two different values "basic" or "oauth".
+- `authentication`: optional, it can have three different values "basic" or "oauth" or "oauth_token".
 - `username`: optional username for authentication in case of both authentication method.
 - `password`: optional password for authentication in case of both authentication method.
+- `client_secret`: Client secret for OAuth authentication via a non-public keycloak client, used with "oauth_token" authentication
+- `offline_token`: Offline token for authentication acquired via the /get-token endpoint, used with "oauth_token" authentication
 - `authentication_server`: Authentication Server url (together with the port).
 - `realm`: defines the Realm in case of OAuth authentication.
 - `client_id`: defines the client in the Realm in case of OAuth authentication.
@@ -41,5 +45,9 @@ Calls the Real-Time Scoring agent on the specified dataset and returns the resul
 Arguments:
 - `dataframe`: the pandas DataFrame.
 
+
+
 Returns:
+
+
 - the result as a pandas DataFrame.

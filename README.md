@@ -206,22 +206,24 @@ To create a `Server` `Connector` object, run the following code:
 connector = rapidminer.Server("https://myserver.mycompany.com:8080")
 ```
 
-It will ask you for further input to be able to authenticate. It is also possible to configure it using the constructor arguments: 
+It will ask you for further input to be able to authenticate. The input required from the user:
+ - authentication_server: the url of the Keycloak authentication server with the /auth postfix
+ - offline_token: after logging to the AI Hub instance, with the correct permissions you should be able to reach your {AI Hub url}/get-token page, where you can find the value of the offline token
+ - client_secret: on the above page you should be able to see the client secret for this token-tool client
+
+It is also possible to configure it using the constructor arguments: 
 
 ```python
-connector = rapidminer.Server("https://myserver.mycompany.com:8080", username="myrmuser", password="myrmpassword", authentication_server="http:///myserver.mycompany.com:8081", realm="MyCompanyRealm", client_id="mycompany-rapidminer-server")
+connector = rapidminer.Server("https://myserver.mycompany.com:8080", authentication_server="http:///myserver.mycompany.com:8081/auth", offline_token="qwert12345", client_secret="qwert12345")
 ```
-
-where you replace `"https://myserver.mycompany.com:8080"` with the url of your RapidMiner AI Hub instance, `"myrmuser"` with your username, `"myrmpassword"` with your password, `"http:///myserver.mycompany.com:8081"` with the url of your KeyCloak server, `"MyCompanyRealm"` with your company Realm in the KeyCloak server, `"mycompany-rapidminer-server"` with the client id which has the rights to authenticate in.
 
 ### Running a process
 
 You may want to run a process that resides in a versioned project. Note that inputs and outputs are not allowed, as the process can only directly read from the project and potentially write back using an automatic commit and push. To run the latest version of a process in project, use the following code:
 
 ```python
-process = ProjectLocation('test-project', 'test-process.rmp')
-connector = rapidminer.Server("https://myserver.mycompany.com:8080", username="myrmuser", password="myrmpassword", authentication_server="http:///myserver.mycompany.com:8081", realm="MyCompanyRealm", client_id="mycompany-rapidminer-server")
-connector.run_process(path=process)
+connector = rapidminer.Server("https://myserver.mycompany.com:8080", authentication_server="http:///myserver.mycompany.com:8081/auth", offline_token="fulltoken", client_secret="qwert12345")
+connector.run_process("processes/normalize_iris.rmp", project="sample-dev")
 ```
 
 You can add the `project` name and `path` to the process to the run_process method too. You can also define `macros` and the `queue`, like the following way:
@@ -300,11 +302,14 @@ wa = rapidminer.WebApi("http://myserver.mycompany.com:8090", "score-sales/score1
 prediction = wa.predict(data)
 ```
 
-If the oauth authentication is configured, it is needed to add three more extra arguments compared to the basic authentication to define the `authentication server`, the `realm` and the `client-id`.
-The value of the authentication parameter in this case is `"oauth"`.
+If the oauth authentication is configured, it is needed to add three more extra arguments compared to the basic authentication to define the `authentication server`, the `offline_token` and the `client_secret`.
+The value of the authentication parameter in this case is `"oauth"`. The extra parameters details:
+ - authentication_server: the url of the Keycloak authentication server with the /auth postfix
+ - offline_token: after logging to the AI hub instance, with the correct permissions you should be able to reach your {AI Hub url}/get-token endpoint, where you can find the value of the offline token
+ - client_secret: on the above page you should be able to see the client secret for this token-tool client
 
 ```python
-wa = rapidminer.WebApi("http://myserver.mycompany.com:8090", "score-sales/score1", authentication='oauth', username="my_user", password="my_password", authentication_server='http://auth-server.mycompany.com:8081', realm='MyCompanyRealm', client_id='my-client')
+wa = rapidminer.WebApi("http://myserver.mycompany.com:8090", "score-sales/score1", authentication='oauth', authentication_server="http:///myserver.mycompany.com:8090/auth", offline_token="qwert12345", client_secret="qwert12345")
 prediction = wa.predict(data)
 ```
 

@@ -19,13 +19,15 @@ import os
 import codecs
 import re
 
-requirements = ["pandas>=1", "requests", "numpy", "zeep", "h5py", "cryptography", "pyjwt"]
+requirements = ["pandas>=1", "requests", "numpy<2", "zeep", "h5py", "cryptography", "pyjwt"]
 name = "rapidminer"
 here = os.path.abspath(os.path.dirname(__file__))
+
 
 def read(*parts):
     with codecs.open(os.path.join(here, *parts), 'r') as fp:
         return fp.read()
+
 
 def find_version(*file_paths):
     version_file = read(*file_paths)
@@ -34,6 +36,7 @@ def find_version(*file_paths):
     if version_match:
         return version_match.group(1)
     raise RuntimeError("Unable to find version string.")
+
 
 version = find_version(name, "__init__.py")
 readme = ""
@@ -54,7 +57,7 @@ for cname in "Studio.md", "Server.md", "Scoring.md", "Project.md", "Connections.
 for pyname in "studio_examples.ipynb", "server_examples.ipynb", "project_examples.ipynb":
     readme = readme.replace("examples/" + pyname, github_baseurl + "examples/" + pyname)
 readme = readme.replace("CHANGES.md", github_baseurl + "CHANGES.md")
-    
+
 setup(name=name,
       version=version,
       description='Tools for running RapidMiner processes and managing RapidMiner repositories.',
