@@ -6,6 +6,11 @@ The first 3 numbers in the version always indicate the RapidMiner platform (Stud
 
 Because of multiple reasons (like managing and releasing point of view) from version 10.1.0 we go with the more standardised version numbering. 
 
+### Version 2024.1.0
+
+* Bugfix: DataFrame reading error in case of integer columns
+* Bugfix: Fix reading process details by calling a non-deprecated endpoint
+
 ### Version 10.2.0
 
 * Rework authentication to support offline_token authentication method

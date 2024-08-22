@@ -118,8 +118,7 @@ class Project():
         if typestr == 'Integer':
             # NaN values are not allowed in int64
             if not np.isnan(np.min(x[:])):
-                with x.astype('int64'):
-                    return x[:]
+                return x.astype('int64')[:]
             else:
                 return x
         elif typestr in ('Date-Time', 'Date'):

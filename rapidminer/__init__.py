@@ -15,7 +15,7 @@
 # If not, see https://www.gnu.org/licenses/.
 #
 
-__version__ = "10.2.0"
+__version__ = "2024.1.0"
 
 from .core.studio import Studio
 from .core.server import Server

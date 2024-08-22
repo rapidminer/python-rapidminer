@@ -33,6 +33,7 @@ import os
 from pathlib import Path
 from typing import Optional
 import json
+import urllib.parse
 
 from .. import __version__
 
@@ -314,19 +315,29 @@ class Server(Connector):
             raise ServerException(error_fn(msg))
         return response
 
-    def __read_process_from_project(self, project, path):
-        get_url = self.server_url + "/" + API_CONTEXT + "/repositories/" + project + "/resources/master/" + path
+    def __read_process_from_project(self, project: str, path: str) -> str:
+        def construct_url(project: str, path: str) -> str:
+            """Helper function to construct the request URL."""
+            encoded_path = urllib.parse.quote(path, safe='')
+            return f"{self.server_url}/{API_CONTEXT}/repositories/{project}/assets/master?location={encoded_path}"
+
+        get_url = construct_url(project, path)
         try:
-            r = self.__send_request(partial(requests.get, get_url),
-                                    lambda s: "Failed to find process at " + project + "/" + path + ", status: " + str(
-                                        s))
+            response = self.__send_request(
+                partial(requests.get, get_url),
+                lambda s: f"Failed to find process at {project}/{path}, status: {s}"
+            )
         except ServerException as e:
-            # re-try with rmp file extension if it has not been specified
+        # Retry with .rmp file extension if it has not been specified and the error is a 404
             if str(e).endswith("404") and len(Path(path).suffix) == 0:
-                r = self.__send_request(partial(requests.get, get_url + Project._RM_RMP_EXTENSION),
-                                        lambda
-                                            s: "Failed to find process at " + project + "/" + path + ", status: " + str(
-                                            s))
+                new_path = path + Project._RM_RMP_EXTENSION
+                get_url_with_extension = construct_url(project, new_path)
+                response = self.__send_request(
+                    partial(requests.get, get_url_with_extension),
+                    lambda s: f"Failed to find process at {project}/{new_path}, status: {s}"
+                )
             else:
+                # Log the error or raise with more context
+                self.logger.error(f"Error retrieving process from project {project}, path {path}: {str(e)}")
                 raise e
-        return r.text
+        return response.text
