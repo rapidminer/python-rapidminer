@@ -6,6 +6,10 @@ The first 3 numbers in the version always indicate the RapidMiner platform (Stud
 
 Because of multiple reasons (like managing and releasing point of view) from version 10.1.0 we go with the more standardised version numbering. 
 
+### Version 2025.0.0
+
+* Added full support of attribute/column roles
+
 ### Version 2024.1.0
 
 * Bugfix: DataFrame reading error in case of integer columns

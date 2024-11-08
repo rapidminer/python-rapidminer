@@ -3,6 +3,9 @@
 
 
 ## Connections
+```python
+Connections()
+```
 
 Class for using connections from a Project or Repository.
 
@@ -26,6 +29,9 @@ Initializes a reference to a locally cloned project or to an AI Hub repository. 
 
 
 ## Connection
+```python
+Connection()
+```
 
 Class that represents a single connection.
 

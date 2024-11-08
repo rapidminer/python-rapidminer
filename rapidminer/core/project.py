@@ -54,7 +54,7 @@ class Project():
                        "DATE": np.int8(10),
                        "TIME": np.int8(11)}
     _LEGACY_TYPES = ["TEXT", "BINOMINAL", "FILE_PATH", "DATE"] # POLYNOMIAL handled separatly
-    _METADATA_ROLES = ["BATCH", "CLUSTER", "ID", "LABEL", "OUTLIER", "PREDICTION", "WEIGHT"]
+    _METADATA_ROLES = ["BATCH", "CLUSTER", "ENCODING", "ID", "INTERPRETATION", "LABEL", "OUTLIER", "PREDICTION", "SOURCE", "WEIGHT"]
 
     __RM_MISSING_DATETIME_OR_TIME = 9223372036854775807 # constant value is coming from com.rapidminer.storage.hdf5.ExampleSetHdf5Writer.java#writeDateData/writeTimeData as of Long.MAX_VALUE/TimeColumn.MISSING_VALUE
     __PANDAS_MISSING_DATE = pd.to_numeric(pd.Series([datetime.utcfromtimestamp(0), None]), downcast="integer")[1]
@@ -205,7 +205,7 @@ class Project():
 
     def __get_desired_type(frame, column, name):
         desired_type = None
-        if hasattr(frame, "rm_metadata") and name in frame.rm_metadata:
+        if hasattr(frame, "rm_metadata") and name in frame.rm_metadata and frame.rm_metadata[name][0]:
             desired_type = frame.rm_metadata[name][0].upper()
         else:
             if column.dtype.kind == 'O':
