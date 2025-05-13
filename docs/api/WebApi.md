@@ -3,9 +3,6 @@
 
 
 ## WebApi
-```python
-WebApi()
-```
 
 Class that allows you to use the Web Api endpoints on a dataset with authentication available.
 You can authenticate via the basic authentication method and via OAuth2, Keycloak server.

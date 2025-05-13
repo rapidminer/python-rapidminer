@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2024 RapidMiner GmbH
+# Copyright (C) 2018-2025 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -24,8 +24,8 @@ import datetime
 
 try:
     from .. import __version__
-except:
-    __version__ = "0.0.0" # replaced by extension code
+except BaseException:
+    __version__ = "0.0.0"  # replaced by extension code
 
 # instance(x, basestring) works with Python 2 and 3 this way
 try:
@@ -33,50 +33,63 @@ try:
 except NameError:
     basestring = str
 
+
 class DateConversionError(ValueError):
     def __init__(self, msg):
         super(DateConversionError, self).__init__(msg)
 
 # returns the error raised for empty inputs by pandas.read_csv (pandas version dependent)
+
+
 def __get_empty_data_error():
     try:
         return pandas.errors.EmptyDataError
-    except:
+    except BaseException:
         try:
             return pandas.parser.CParserError, ValueError
-        except:
+        except BaseException:
             return None
+
 
 def __open_file_python2(file, mode):
     return open(file, mode)
 
+
 def __open_file_python3(file, mode):
     return open(file, mode, encoding="utf-8")
 
+
 def __write_file_python2(file, object):
-    if type(object) != unicode:
-        if type(object) != str:
+    if not isinstance(object, unicode):
+        if not isinstance(object, str):
             object = str(object)
         object = unicode(object, "utf-8")
     file.write(object.encode("utf-8"))
 
+
 def __write_file_python3(file, object):
     file.write(str(object))
+
 
 def read_file(file):
     return file.read()
 
+
 def __b64encode_python2(str):
     return base64.b64encode(str)
+
 
 def __b64encode_python3(str):
     return base64.b64encode(str.encode("utf-8")).decode("utf-8")
 
+
 def __b64decode_python2(str):
     return base64.b64decode(str)
 
+
 def __b64decode_python3(str):
     return base64.b64decode(str.encode("utf-8")).decode("utf-8")
+
 
 if sys.version_info >= (3, 0):
     open_file = __open_file_python3
@@ -89,6 +102,7 @@ else:
     b64encode = __b64encode_python2
     b64decode = __b64decode_python2
 
+
 def is_file_object(entry):
     try:
         if entry.closed:
@@ -99,11 +113,15 @@ def is_file_object(entry):
         return False
 
 # writes string to error file
+
+
 def write_to_error_log(full_message):
     with open_file("rapidminer_error.log", "w") as error_file:
         write_file(error_file, full_message)
 
 # transforms meta data list to a dictionary
+
+
 def transform_metadata(list):
     dict = {}
     for element in list:
@@ -120,14 +138,17 @@ def transform_metadata(list):
     return dict
 
 # reads the example set from the files into a pandas.DataFrame.
+
+
 def read_example_set(input_csv, input_pmd):
     def read_date(epoch):
         if epoch != "null" and epoch is not np.nan and epoch == epoch:
             # because of some older pandas versions, we need to read in "ns"
             try:
-                return pandas.to_datetime(int(epoch)*1000, unit='ns')
+                return pandas.to_datetime(int(epoch) * 1000, unit='ns')
             except OverflowError:
-                raise Exception("Overflow error occurred during reading date columns. Python pandas can only handle dates between " + str(datetime.date(1677,9,21)) + " and " + str(datetime.date(2262,4,11)) + ".\n\nIf you want to use dates outside this range, please convert your data to integer in RapidMiner with 'Date to Numerical' operator, and convert back integer values in Python pandas manually in your code.")
+                raise Exception("Overflow error occurred during reading date columns. Python pandas can only handle dates between " + str(datetime.date(1677, 9, 21)) + " and " + str(datetime.date(2262, 4, 11)) +
+                                ".\n\nIf you want to use dates outside this range, please convert your data to integer in RapidMiner with 'Date to Numerical' operator, and convert back integer values in Python pandas manually in your code.")
         else:
             return None
 
@@ -164,12 +185,12 @@ def read_example_set(input_csv, input_pmd):
         # potential irrelevant warnings on nominal columns
         try:
             warnings.simplefilter("ignore", pandas.errors.DtypeWarning)
-        except:
+        except BaseException:
             # older Pandas version does not have pandas.errors
             pass
         try:
             df = pandas.read_csv(input_csv,
-                                 dtype={i:dtype[i] for i in dtype.keys() if dtype[i] != "int64"},
+                                 dtype={i: dtype[i] for i in dtype.keys() if dtype[i] != "int64"},
                                  encoding="utf-8",
                                  header=None,
                                  converters=conv,
@@ -177,10 +198,11 @@ def read_example_set(input_csv, input_pmd):
                                  date_parser=lambda epoch: read_date(epoch))
             df.rename(columns=rename_map, inplace=True)
         except __get_empty_data_error():
-            df = pandas.DataFrame([["obj" for _ in range(len(rename_map))]], columns=[rename_map[i] for i in range(len(rename_map))])
+            df = pandas.DataFrame([["obj" for _ in range(len(rename_map))]], columns=[
+                                  rename_map[i] for i in range(len(rename_map))])
             df = df.iloc[0:0]
             if len(dtype) > 0:
-                dtype_map = {rename_map[i]:dtype[i] for i in dtype.keys()}
+                dtype_map = {rename_map[i]: dtype[i] for i in dtype.keys()}
                 for column in dtype_map.keys():
                     df[column] = df[column].astype(dtype_map[column])
     set_metadata_without_warning(df, transform_metadata(metadata))
@@ -188,12 +210,14 @@ def read_example_set(input_csv, input_pmd):
 
 # uses the meta data from rm_metadata attribute if present
 # otherwise deduces the type from the data and sets no special role
+
+
 def get_metadata(data, original_names):
     metadata = []
 
     # check if rm_metadata attribute is present and a dictionary
     try:
-        if hasattr(data, "rm_metadata") and isinstance(data.rm_metadata,dict):
+        if hasattr(data, "rm_metadata") and isinstance(data.rm_metadata, dict):
             meta_isdict = True
         elif hasattr(data, "rm_metadata"):
             meta_isdict = False
@@ -201,7 +225,7 @@ def get_metadata(data, original_names):
                 print("Warning: rm_metadata must be a dictionary")
         else:
             meta_isdict = False
-    except:
+    except BaseException:
         meta_isdict = False
 
     for name in data.columns.values:
@@ -211,12 +235,15 @@ def get_metadata(data, original_names):
                 meta = data.rm_metadata[original_name]
             else:
                 meta = None
-            #take entries only if tuple of length 2
-            if isinstance(meta,tuple) and len(meta)==2 and meta_isdict:
+            # take entries only if tuple of length 2
+            if isinstance(meta, tuple) and len(meta) == 2 and meta_isdict:
                 meta_type, meta_role = meta
             else:
                 if meta_isdict and meta is not None:
-                    print("Warning: rm_metadata["+str(original_name)+"] must be a tuple of length 2, e.g. data.rm_metadata['column1']=('binominal','label')")
+                    print(
+                        "Warning: rm_metadata[" +
+                        str(original_name) +
+                        "] must be a tuple of length 2, e.g. data.rm_metadata['column1']=('binominal','label')")
                 # if the format of metadata is not correct, still try to figure out meta type and role
                 if isinstance(meta, basestring) and len(meta) > 0:
                     meta_type = meta
@@ -239,10 +266,10 @@ def get_metadata(data, original_names):
 
         if meta_role is None:
             meta_role = 'attribute'
-        #choose type by dtype of the column
+        # choose type by dtype of the column
         if meta_type is None or not __valid_meta_type(meta_type):
             kind_char = data.dtypes[name].kind
-            if kind_char in ('i','u'):
+            if kind_char in ('i', 'u'):
                 meta_type = 'integer'
             elif kind_char in ('f'):
                 meta_type = 'real'
@@ -253,21 +280,25 @@ def get_metadata(data, original_names):
             else:
                 meta_type = 'polynominal'
         # double quote and backslash characters are escaped automatically in the name key
-        metadata.append({name : (meta_type,meta_role)})
+        metadata.append({name: (meta_type, meta_role)})
     return metadata
 
 # if name has a string representation containing non-ascii symbols in python 2,
 # for example if name is a python 2 unicode with umlauts, then str(name) results in exception;
 # in this case it is in particular not empty and contains more than only digits
+
+
 def isstringable(name):
     try:
         str(name)
         return True
-    except:
+    except BaseException:
         return False
+
 
 def is_invalid_name(name):
     return isstringable(name) and ((not str(name)) or str(name).isdigit())
+
 
 def rename_columns(dataframe):
     original_names = {}
@@ -277,13 +308,15 @@ def rename_columns(dataframe):
         for name in dataframe.columns.values:
             new_name = name
             if is_invalid_name(name):
-                new_name = 'att'+str(name)
+                new_name = 'att' + str(name)
                 original_names[new_name] = name
             new_columns.append(new_name)
         dataframe.columns = new_columns
     return original_names
 
 # base64 encode all nominals and convert dates to epoch
+
+
 def convert_to_output_format(df, metadata, hdf5_compliant_date_and_time_conversion):
     def b64(x):
         if isinstance(x, basestring):
@@ -308,37 +341,44 @@ def convert_to_output_format(df, metadata, hdf5_compliant_date_and_time_conversi
                 try:
                     if all(index):
                         # // operator is necessary to keep type int in all python, pandas versions
-                        df[name] = df[name].astype("int64")//1000
+                        df[name] = df[name].astype("int64") // 1000
                     else:
                         # workaround for pandas error in some older pandas version
-                        if type(index) == pandas.Series:
+                        if isinstance(index, pandas.Series):
                             try:
                                 # this will always raise errors with older pandas versions
                                 index[0:0].dropna()
                             except TypeError:
                                 index = index.tolist()
-                        df.loc[index, name] = df.loc[index,name].astype("int64")
+                        df.loc[index, name] = df.loc[index, name].astype("int64")
                         # check if conversion succeeded (for pandas==0.17.1 for example it is not working)
                         sample = df.loc[index, name].iloc[0]
                         if __is_integer_number(sample):
                             # // operator is necessary to keep type int in all python, pandas versions
-                            df.loc[index, name] = df.loc[index,name]//1000
+                            df.loc[index, name] = df.loc[index, name] // 1000
                         else:
                             df[name] = df[name].astype("object")
-                            df.loc[index, name] = ((df.loc[index, name] - pandas.to_datetime(0, unit="ns")).dt.total_seconds()*1e6).round().astype("int64")
+                            df.loc[index, name] = ((df.loc[index, name] -
+                                                    pandas.to_datetime(0, unit="ns")).dt.total_seconds() *
+                                                   1e6).round().astype("int64")
                     if hdf5_compliant_date_and_time_conversion:
                         if meta_type == "time":
                             df[name] = df[name] % 86400000000
                         elif meta_type == "date":
                             df[name] = df[name] // 1e6 * 1e6
                 except ValueError:
-                    raise DateConversionError("Error while serializing dataframe: some values in column '" + str(name) + "' are not valid dates.")
+                    raise DateConversionError(
+                        "Error while serializing dataframe: some values in column '" +
+                        str(name) +
+                        "' are not valid dates.")
             elif __nominal_meta_type(meta_type):
                 df[name] = df[name].apply(b64)
     df.rm_converted_for_writing = True
 
 # writes the data and metadata to files
 # SIDE EFFECT: the method may modify the original data
+
+
 def write_example_set(data, output_csv, output_pmd, hdf5_compliant_date_and_time_conversion=False):
     original_names = rename_columns(data)
     # metadata
@@ -353,31 +393,40 @@ def write_example_set(data, output_csv, output_pmd, hdf5_compliant_date_and_time
     convert_to_output_format(data, metadata, hdf5_compliant_date_and_time_conversion)
     data.to_csv(output_csv, encoding="utf-8", header=False, index=False)
 
+
 def set_metadata_without_warning(df, metadata):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         df.rm_metadata = metadata
 
 # based on Ontology
+
+
 def __valid_meta_type(meta_type):
-    return meta_type in [None, "integer", "real", "numeric"] or __nominal_meta_type(meta_type) or __date_meta_type(meta_type)
+    return meta_type in [None, "integer", "real", "numeric"] or __nominal_meta_type(
+        meta_type) or __date_meta_type(meta_type)
+
 
 def __nominal_meta_type(meta_type):
     return meta_type in ["nominal", "binominal", "polynominal", "text", "file_path"]
+
 
 def __date_meta_type(meta_type):
     return meta_type in ["date_time", "date", "time"]
 
 # ensures python2 compatibility
+
+
 def __handle_unicode(value):
     if sys.version_info.major == 2:
-        if type(value) == unicode:
+        if isinstance(value, unicode):
             return value.encode("utf-8")
     return value
+
 
 def __is_integer_number(vut):
     try:
         vut + 1
         return True
-    except:
+    except BaseException:
         return False

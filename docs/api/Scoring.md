@@ -3,9 +3,6 @@
 
 
 ## Scoring
-```python
-Scoring()
-```
 
 Class that allows you to use the Real-Time Scoring agent directly on a dataset with authentication available.
 You can authenticate via the basic authentication method and via OAuth2, Keycloak server.

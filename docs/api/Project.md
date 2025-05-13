@@ -3,9 +3,6 @@
 
 
 ## Project
-```python
-Project()
-```
 
 Class for using a project from RapidMiner Server that has been cloned locally. Use git for cloning the repository, then read and write calls can work on local resources. You need to use git commands to push changes that you make locally.
 

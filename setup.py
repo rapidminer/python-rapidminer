@@ -19,7 +19,7 @@ import os
 import codecs
 import re
 
-requirements = ["pandas>=1", "requests", "numpy<2", "zeep", "h5py", "cryptography", "pyjwt"]
+requirements = ["pandas", "requests", "numpy", "zeep", "h5py", "cryptography", "pyjwt"]
 name = "rapidminer"
 here = os.path.abspath(os.path.dirname(__file__))
 

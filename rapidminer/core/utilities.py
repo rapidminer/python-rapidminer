@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2024 RapidMiner GmbH
+# Copyright (C) 2018-2025 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -23,38 +23,48 @@ if sys.version_info.major > 2:
 else:
     raise GeneralException("Python 2 is not supported. Use Python 3.")
 
-__STDOUT_ENCODING__ = os.getenv("PYTHONIOENCODING") # encoding in python should be the same as in Studio (with -Dfile.encoding param or system global), in order to handle special characters well
+# encoding in python should be the same as in Studio (with -Dfile.encoding
+# param or system global), in order to handle special characters well
+__STDOUT_ENCODING__ = os.getenv("PYTHONIOENCODING")
 if __STDOUT_ENCODING__ is None or __STDOUT_ENCODING__ == "":
     __STDOUT_ENCODING__ = "utf-8"
+
 
 class GeneralException(Exception):
     """
     General exception class to errors related to the rapidminer package.
     """
+
     def __init__(self, msg=""):
         super(GeneralException, self).__init__(msg)
+
 
 class ServerException(Exception):
     def __init__(self, msg=""):
         super(ServerException, self).__init__(msg)
 
+
 class ProjectException(Exception):
     def __init__(self, msg=""):
         super(ProjectException, self).__init__(msg)
+
 
 class TooManyBinomialValuesError(ProjectException):
     def __init__(self, msg=""):
         super(TooManyBinomialValuesError, self).__init__(msg)
 
+
 class ValueConversionError(ProjectException):
     def __init__(self, msg=""):
         super(ValueConversionError, self).__init__(msg)
 
+
 class VersionException(Exception):
     def __init__(self, product, upgrade_to):
         super(VersionException, self).__init__("You are using an older version of Python Scripting Extension in "
-                                        + product + ". Upgrade to "
-                                        + upgrade_to + " version to use this version of the package.")
+                                               + product + ". Upgrade to "
+                                               + upgrade_to + " version to use this version of the package.")
+
 
 def extract_json(res):
     """
@@ -66,7 +76,7 @@ def extract_json(res):
     if hasattr(res, 'content') and len(res.text.strip()) > 0:
         try:
             response = res.json()
-        except:
+        except BaseException:
             return {}
         if "error" in response:
             s = ""
@@ -86,7 +96,7 @@ class Version:
         v = version.split(".")
         # cut -BETA, -SNAPSHOT from last component, etc.
         [self.major, self.minor, self.patch] = [int(v[0]), int(v[1]), int(v[2].rsplit('-', 1)[0])]
- 
+
     def is_at_least(self, other):
         selflist = [self.major, self.minor, self.patch]
         otherlist = [other.major, other.minor, other.patch]
@@ -96,6 +106,7 @@ class Version:
             elif selflist[i] < otherlist[i]:
                 return False
         return True
+
 
 def _is_docker_based_deployment():
     return all([var in os.environ for var in ["JUPYTERHUB_API_TOKEN", "JUPYTERHUB_API_URL", "JUPYTERHUB_USER"]])

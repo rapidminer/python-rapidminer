@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2024 RapidMiner GmbH
+# Copyright (C) 2018-2025 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -28,7 +28,7 @@ import io
 import pandas
 try:
     import cPickle as pickle
-except:
+except BaseException:
     import pickle
 from .utilities import __STDOUT_ENCODING__
 from .connector import Connector
@@ -43,23 +43,26 @@ from .serdeutils import read_example_set, write_example_set
 
 from .. import __version__
 
+
 class StudioException(Exception):
     def __init__(self, msg=""):
         super(Exception, self).__init__(msg)
+
 
 class Studio(Connector):
     """
     Class for using a locally installed RapidMiner Studio instance. You can read from and write to the repositories defined in Studio (and use even remote repositories this way) and you can execute processes.
     """
-    __TMP_OUTPUT_DIR_PREFIX= "rapidminer-scripting-output-"
-    __TMP_INPUT_DIR_PREFIX="rapidminer-scripting-inputs-"
-    __VERSION_MSG="RAPIDMINER_VERSION="
-    ___EXIT_CODE_MSG="EXIT_CODE="
-    __RAPIDMINER_ERROR_MSG="RAPIDMINER_ERROR_MSG="
-    __RAPIDMINER_ERROR_MSG_FIRST_LINE="RAPIDMINER_ERROR_MSG_FIRST_LINE="
-    __SCRIPTS_SUBDIR="scripts"
+    __TMP_OUTPUT_DIR_PREFIX = "rapidminer-scripting-output-"
+    __TMP_INPUT_DIR_PREFIX = "rapidminer-scripting-inputs-"
+    __VERSION_MSG = "RAPIDMINER_VERSION="
+    ___EXIT_CODE_MSG = "EXIT_CODE="
+    __RAPIDMINER_ERROR_MSG = "RAPIDMINER_ERROR_MSG="
+    __RAPIDMINER_ERROR_MSG_FIRST_LINE = "RAPIDMINER_ERROR_MSG_FIRST_LINE="
+    __SCRIPTS_SUBDIR = "scripts"
 
-    def __init__(self, studio_home=None, logger=None, loglevel=logging.INFO, rm_stdout=None, override_python_binary=False):
+    def __init__(self, studio_home=None, logger=None, loglevel=logging.INFO,
+                 rm_stdout=None, override_python_binary=False):
         """
         Initializes a new connector to a local Rapidminer Studio instance. Every command will launch a new Studio instance, executing the required operations in batch mode.
 
@@ -80,14 +83,16 @@ class Studio(Connector):
             self.studio_home = Studio.__get_default_rmhome()
         self.__rm_stdout__ = rm_stdout
         self.override_python_binary = override_python_binary
-        self.__last_exception_msg__ = {} # ensures proper multithreading: this maps last exception message for every thread
-        self.__last_exit_code__ = {} # ensures proper multithreading: this maps last exit code for every thread
+        self.__last_exception_msg__ = {}  # ensures proper multithreading: this maps last exception message for every thread
+        self.__last_exit_code__ = {}  # ensures proper multithreading: this maps last exit code for every thread
         self.__rapidminer_version = {}
         if not os.path.isdir(self.studio_home):
             raise StudioException("Specified or default RapidMiner Home does not exist: " + self.studio_home)
         scripts_dir = os.path.join(self.studio_home, self.__SCRIPTS_SUBDIR)
         if not os.path.isdir(scripts_dir):
-            raise StudioException("Specified or default RapidMiner Home does not contain required scripts: " + scripts_dir)
+            raise StudioException(
+                "Specified or default RapidMiner Home does not contain required scripts: " +
+                scripts_dir)
 
 ####################
 # Public functions #
@@ -110,7 +115,11 @@ class Studio(Connector):
             single_input = False
         output_dirs = [tempfile.mkdtemp(prefix=self.__TMP_OUTPUT_DIR_PREFIX) for _ in path]
         try:
-            self.__run_rapidminer(input_files=list(path), output_files=[File(output_dir) for output_dir in output_dirs], command_type="READ_RESOURCE")
+            self.__run_rapidminer(
+                input_files=list(path),
+                output_files=[
+                    File(output_dir) for output_dir in output_dirs],
+                command_type="READ_RESOURCE")
             output_files = []
             for output_dir in output_dirs:
                 csv_files = glob.glob(output_dir + "/*.csv-encoded")
@@ -144,8 +153,21 @@ class Studio(Connector):
             raise ValueError("Resource and path must contain the same number of values.")
         input_dirs = [tempfile.mkdtemp(prefix=self.__TMP_INPUT_DIR_PREFIX) for _ in resource]
         try:
-            input_files = [self.__serialize_to_file(obj, os.path.join(dir, "input0")) for (dir, obj) in zip(input_dirs, resource)]
-            self.__run_rapidminer(input_files=[File(f) for f in input_files], output_files=path, command_type="WRITE_RESOURCE")
+            input_files = [
+                self.__serialize_to_file(
+                    obj,
+                    os.path.join(
+                        dir,
+                        "input0")) for (
+                    dir,
+                    obj) in zip(
+                    input_dirs,
+                    resource)]
+            self.__run_rapidminer(
+                input_files=[
+                    File(f) for f in input_files],
+                output_files=path,
+                command_type="WRITE_RESOURCE")
         finally:
             for input_dir in input_dirs:
                 shutil.rmtree(input_dir, ignore_errors=True)
@@ -171,8 +193,16 @@ class Studio(Connector):
                 input_dir = tempfile.mkdtemp(prefix=self.__TMP_INPUT_DIR_PREFIX)
                 remove_dirs.append(input_dir)
                 for i in range(len(inputs)):
-                    input_files.append(File(self.__serialize_to_file(inputs[i], os.path.join(input_dir, "input" + str(i)))))
-            return self.__run_process_with_output_dir(path, input_files, operator, output_dir, macros, command_type="RUN_PROCESS")
+                    input_files.append(
+                        File(
+                            self.__serialize_to_file(
+                                inputs[i],
+                                os.path.join(
+                                    input_dir,
+                                    "input" +
+                                    str(i)))))
+            return self.__run_process_with_output_dir(
+                path, input_files, operator, output_dir, macros, command_type="RUN_PROCESS")
         finally:
             for dir in remove_dirs:
                 shutil.rmtree(dir, ignore_errors=True)
@@ -239,7 +269,7 @@ class Studio(Connector):
             except ValueError:
                 self.__last_exit_code__[threadid] = 0
 
-    def __print_to_console(self, process, close_process_stdout=False, threadid = -1):
+    def __print_to_console(self, process, close_process_stdout=False, threadid=-1):
         for line in iter(process.stdout.readline, b''):
             try:
                 msg = line.decode(encoding=__STDOUT_ENCODING__, errors='ignore')
@@ -256,7 +286,7 @@ class Studio(Connector):
             process.stdout.close()
 
     def __start_printer_thread(self, process):
-        t = Thread(target = self.__print_to_console, args=(process, False, threading.currentThread().ident))
+        t = Thread(target=self.__print_to_console, args=(process, False, threading.currentThread().ident))
         t.daemon = True
         t.start()
 
@@ -279,7 +309,7 @@ class Studio(Connector):
                 else:
                     encoded = encoded + character
             else:
-                #replace non ASCII with \nxHHHH, where n is the length og HHHH, HHHH is the hex code
+                # replace non ASCII with \nxHHHH, where n is the length og HHHH, HHHH is the hex code
                 code = hex(ord(character))[2:]
                 encoded = encoded + "\\" + str(len(code)) + "x" + code
         return encoded
@@ -307,13 +337,15 @@ class Studio(Connector):
         return input_file.endswith(".fo")
 
     # TODO refactor this method to reduce its cognitive complexity from 26 to the allowed 15...
-    def __run_rapidminer(self, process=None, input_files=[], output_files=[], output_dir=None, macros={}, operator=None, command_type=None):
+    def __run_rapidminer(self, process=None, input_files=[], output_files=[],
+                         output_dir=None, macros={}, operator=None, command_type=None):
         kwargs = {"stdout": subprocess.PIPE,
                   "stderr": subprocess.STDOUT,
                   "bufsize": 10}
         params = []
         script_path = ''
-        if os.path.isfile(os.path.join(self.studio_home, self.__SCRIPTS_SUBDIR, "rapidminer-batch" + self.__get_script_suffix())):
+        if os.path.isfile(os.path.join(self.studio_home, self.__SCRIPTS_SUBDIR,
+                          "rapidminer-batch" + self.__get_script_suffix())):
             script_path = os.path.join(
                 self.studio_home, self.__SCRIPTS_SUBDIR, "rapidminer-batch" + self.__get_script_suffix())
         elif os.path.isfile(os.path.join(self.studio_home, self.__SCRIPTS_SUBDIR, "ai-studio-batch" + self.__get_script_suffix())):
@@ -323,7 +355,10 @@ class Studio(Connector):
             raise StudioException(
                 "Cannot find the required script in the RapidMiner/AI Studio installation directory.")
         params.append(script_path)
-        self.__append_param(params, "rmx_python_scripting:com.rapidminer.extension.pythonscripting.launcher.ExtendedCmdLauncher", prefix="-C")
+        self.__append_param(
+            params,
+            "rmx_python_scripting:com.rapidminer.extension.pythonscripting.launcher.ExtendedCmdLauncher",
+            prefix="-C")
         self.__append_param(params, __version__, prefix="-V")
         if (process is not None):
             if not isinstance(process, Resource):
@@ -373,7 +408,8 @@ class Studio(Connector):
                     if threadid in self.__last_exception_msg__:
                         raise StudioException("Error while executing Studio: " + self.__last_exception_msg__[threadid])
                     elif threadid in self.__last_exit_code__:
-                        raise StudioException("Error while executing Studio - unknown error. (error code: " + str(self.__last_exit_code__) + ")")
+                        raise StudioException(
+                            "Error while executing Studio - unknown error. (error code: " + str(self.__last_exit_code__) + ")")
                     else:
                         raise StudioException("Error while executing Studio - unknown error.")
             finally:
@@ -383,7 +419,13 @@ class Studio(Connector):
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
     def __run_process_with_output_dir(self, path, input_files, operator, output_dir, macros, command_type):
-        self.__run_rapidminer(process=path, input_files=input_files, output_dir=output_dir, macros=macros, operator=operator, command_type=command_type)
+        self.__run_rapidminer(
+            process=path,
+            input_files=input_files,
+            output_dir=output_dir,
+            macros=macros,
+            operator=operator,
+            command_type=command_type)
         outputs = glob.glob(os.path.join(output_dir, "*.*"))
         outputs.sort()
         result = []
@@ -434,18 +476,18 @@ class Studio(Connector):
         :return: an arbitrary python object (DataFrame, file object or any other python type pickled out)
         """
         (path, extension) = os.path.splitext(filename)
-        if extension=='.csv-encoded':
+        if extension == '.csv-encoded':
             with __open__(path + ".csv-encoded", 'r') as input_csv:
                 with __open__(path + ".pmd-encoded", 'r') as input_pmd:
                     return read_example_set(input_csv, input_pmd)
-        elif extension=='.bin':
+        elif extension == '.bin':
             with open(filename, 'rb') as f:
                 try:
                     return pickle.load(f)
                 except Exception as exc:
                     raise GeneralException("Error while trying to load pickled object:" + str(exc))
-        elif extension=='.fo':
+        elif extension == '.fo':
             with open(filename, 'rb') as f:
-                return io.BytesIO(f.read()) # reads the file to memory
+                return io.BytesIO(f.read())  # reads the file to memory
         else:
             raise ValueError("Cannot handle files with '" + str(extension) + "' extension.")

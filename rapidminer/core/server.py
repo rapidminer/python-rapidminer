@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2024 RapidMiner GmbH
+# Copyright (C) 2018-2025 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -64,13 +64,13 @@ class Server(Connector):
         :param authentication_server: Authentication Server url (together with the port).
         :param client_secret: Client secret for OAuth authentication via a non-public keycloak client
         :param offline_token: Offline token for authentication acquired via the /get-token endpoint
-        :param verifySSL: Either a boolean to control whether the server's TLS certificate is verified, 
+        :param verifySSL: Either a boolean to control whether the server's TLS certificate is verified,
                       or a string as a path to a CA bundle. Default is True.
         :param logger: A Logger object to use. By default, a simple logger with INFO level logging to stdout is used.
         :param loglevel: the loglevel, as an int value. Common values are defined in the standard logging module. Only used, if logger is not defined.
         """
         super(Server, self).__init__(logger, loglevel)
-        
+
         self.server_url = self._get_server_url(url)
         self.__verifySSL = verifySSL
         self.__user_agent = f"RapidMiner Python Package {str(__version__)}"
@@ -92,17 +92,20 @@ class Server(Connector):
                 if not url:
                     raise ValueError("The URL cannot be empty!")
         return url.rstrip('/')
-    
-    def _initialize_oauthenticator(self, authentication_server: Optional[str], 
+
+    def _initialize_oauthenticator(self, authentication_server: Optional[str],
                                    client_secret: Optional[str], offline_token: Optional[str]) -> OAuthenticator:
         """Initialize the OAuthenticator with the necessary parameters coming from the user for offline_token authentication."""
-        authentication_server = authentication_server or self._prompt_for_input('Please provide your Authentication server URL: ')
-        offline_token = offline_token or self._prompt_for_input('Please provide the offline token that can be found at your <Ai Hub url>/get-token endpoint: ')
-        client_secret = client_secret or self._prompt_for_input('Provide client_secret for token-tool client that can be found at your <Ai Hub url>/get-token endpoint: ')
+        authentication_server = authentication_server or self._prompt_for_input(
+            'Please provide your Authentication server URL: ')
+        offline_token = offline_token or self._prompt_for_input(
+            'Please provide the offline token that can be found at your <Ai Hub url>/get-token endpoint: ')
+        client_secret = client_secret or self._prompt_for_input(
+            'Provide client_secret for token-tool client that can be found at your <Ai Hub url>/get-token endpoint: ')
 
-        return OAuthenticator(url=authentication_server, realm='master', client_id='token-tool', 
-                            client_secret=client_secret, offline_token=offline_token)
-    
+        return OAuthenticator(url=authentication_server, realm='master', client_id='token-tool',
+                              client_secret=client_secret, offline_token=offline_token)
+
     def _prompt_for_input(self, prompt_message):
         return input(prompt_message)
 
@@ -218,7 +221,8 @@ class Server(Connector):
         :return: connections in JSON format
         """
         # repositories/{{repositories_first_name}}/contents/{{repositories_first_ref}}?detailed=true&recursive=true&showHidden=true&retrieveFileAttributes=true&retrieveCommits=true
-        get_url = self.server_url + "/" + API_CONTEXT + "/repositories/" + project_name + "/contents/master?detailed=true&recursive=true&showHidden=true&retrieveFileAttributes=true&retrieveCommits=true"
+        get_url = self.server_url + "/" + API_CONTEXT + "/repositories/" + project_name + \
+            "/contents/master?detailed=true&recursive=true&showHidden=true&retrieveFileAttributes=true&retrieveCommits=true"
         r = self.__send_request(partial(requests.get, get_url),
                                 lambda s: "Failed to get connections list, status: " + str(s))
         return r.json()
@@ -328,7 +332,7 @@ class Server(Connector):
                 lambda s: f"Failed to find process at {project}/{path}, status: {s}"
             )
         except ServerException as e:
-        # Retry with .rmp file extension if it has not been specified and the error is a 404
+            # Retry with .rmp file extension if it has not been specified and the error is a 404
             if str(e).endswith("404") and len(Path(path).suffix) == 0:
                 new_path = path + Project._RM_RMP_EXTENSION
                 get_url_with_extension = construct_url(project, new_path)

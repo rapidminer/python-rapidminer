@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2024 RapidMiner GmbH
+# Copyright (C) 2018-2025 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -32,14 +32,14 @@ class Connections():
     """
     Class for using connections from a Project or Repository.
     """
-    
+
     _CONNECTIONS_SUBDIR = "Connections"
     _CONNECTIONS_EXTENSION = ".conninfo"
-    
+
     def __init__(self, path=".", server=None, project_name=None, show_parameter_groups=False, macros=None):
         """
         Initializes a reference to a locally cloned project or to an AI Hub repository. You either need to clone a project from AI Hub first (e.g. via git commands), or point to an AI Hub repository to be able to use the methods of this class.
-        
+
         :param path: path to the local project repository root folder. It can be a relative path from the current working directory or an absolute path. The default value points to the working directory. Set it to None to read connections from AI Hub repository (server parameter needs to be set in this case)
         :param server: Server object; required when values are encrypted or when values are injected from the AI Hub Vault
         :param project_name: name of the project to which these connections belong; if not specified, it is set to the parent directory name of the specified path parameter. Ignored if AI Hub repository connections are used
@@ -48,14 +48,18 @@ class Connections():
         """
         if not path is None:
             if not os.path.exists(path):
-                raise ProjectException("Specified path does not exist: '%s'. Please make sure you have a local copy of the project at the specified path." % path)
+                raise ProjectException(
+                    "Specified path does not exist: '%s'. Please make sure you have a local copy of the project at the specified path." %
+                    path)
             path = os.path.abspath(path)
             # if not specified, derive project name from the directory name
             if not project_name:
                 project_name = os.path.basename(path)
             path = os.path.join(path, Connections._CONNECTIONS_SUBDIR)
             if not os.path.exists(path):
-                raise ProjectException("Connections directory does not exist at the specified path '%s'. Please make sure you have a local copy of the project." % (os.path.dirname(path)))
+                raise ProjectException(
+                    "Connections directory does not exist at the specified path '%s'. Please make sure you have a local copy of the project." %
+                    (os.path.dirname(path)))
         self.path = path
 
         self.server = server
@@ -64,14 +68,21 @@ class Connections():
         self.macros = macros
         self.__cached_project_primitive = None
         self.__list = []
-        
+
         # load connections either from legacy AI Hub repository or from project path
         if self.path is None:
-            self._check_server("You must either provide a project path ('path' parameter) or a Server object ('server' parameter).")
+            self._check_server(
+                "You must either provide a project path ('path' parameter) or a Server object ('server' parameter).")
             conn_json = self._get_connections_from_project()
             for c in conn_json:
                 project_location = ProjectLocation(project=self.project_name, path=c['location'])
-                self.__list.append(Connection(c["location"], OrderedDict(server._read_connection_info(project_location.to_string())), self))
+                self.__list.append(
+                    Connection(
+                        c["location"],
+                        OrderedDict(
+                            server._read_connection_info(
+                                project_location.to_string())),
+                        self))
         else:
             conn_files = glob.glob(os.path.join(self.path, "*" + Connections._CONNECTIONS_EXTENSION))
             for z in conn_files:
@@ -80,14 +91,15 @@ class Connections():
                         self.__list.append(Connection(os.path.join(Connections._CONNECTIONS_SUBDIR, os.path.basename(z)),
                                                       json.loads(f.read(), object_pairs_hook=OrderedDict), self))
         self.__list.sort(key=lambda c: c.name)
-        
+
     def _get_connections_from_project(self):
         files_in_project = self.server._get_connections_info(self.project_name)
         connections = []
         for f in files_in_project:
-            if Connections._CONNECTIONS_EXTENSION in f['name'] :
-                # The full path is returned: project_name/path_in_project, we need the location of the connection in the project
-                conn = { 'location': f['path'][len(self.project_name) + 1:] }
+            if Connections._CONNECTIONS_EXTENSION in f['name']:
+                # The full path is returned: project_name/path_in_project, we need the
+                # location of the connection in the project
+                conn = {'location': f['path'][len(self.project_name) + 1:]}
                 connections.append(conn)
         return connections
 
@@ -96,7 +108,7 @@ class Connections():
         # Tink is used on the Server side, but we wanted to avoid it on this side. The Tink Python
         # package has missing binary releases for newer Python and for Windows generally as well.
         # Installation from source code runs into various problems.
-        if self.__cached_project_primitive == None:
+        if self.__cached_project_primitive is None:
             response = self.server._get_project_info(self.project_name)
             key_first = next(filter(lambda k: k["status"] == "ENABLED", response["secret"]["key"]))
             key_data = key_first["keyData"]
@@ -114,7 +126,7 @@ class Connections():
                 self.server = get_server()
             else:
                 raise ServerException(error_message)
-    
+
     def __iter__(self):
         return iter(self.__list)
 
@@ -123,7 +135,7 @@ class Connections():
             return self.__list[int(item)]
         except ValueError:
             return next(x for x in self.__list if x.name == item)
-        
+
     def __str__(self):
         return "Connections(%s)" % [x.name for x in self.__list]
 
@@ -194,11 +206,11 @@ class Connection():
         Quick way to access the first field that probably contains a password, e.g. the field name contains the string password.
         """
         return self.find_first("password")
-    
+
     def find_first(self, *words):
         """
         Returns the value of the first connection parameter that has one of the specified arguments in its key as a substring. Useful for looking up parameters if the key is not known accurately.
-        
+
         :param words: arbitrary number of words to look for - the functions stops at the very first word for which it successfully finds a parameter that has the word in its key
         """
         values_cache = self.values
@@ -214,7 +226,7 @@ class Connection():
         self.__lazy_loaded_params = []
         param_keys = set()
         for k in self.__config["keys"]:
-            self.__init_constant_values_in_group(k,param_keys)
+            self.__init_constant_values_in_group(k, param_keys)
 
     def __init_constant_values_in_group(self, group_config, param_keys):
         group = group_config["group"]
@@ -230,7 +242,7 @@ class Connection():
                     self.__lazy_loaded_params.append(p)
                 else:
                     self.__values[p["name"]] = p["value"] if "value" in p else None
-    
+
     def __refresh_dynamic_values(self):
         if len(self.__lazy_loaded_params) < 1:
             # nothing to refresh
@@ -250,17 +262,19 @@ class Connection():
         self.__values[name] = value
 
     def __refresh_vault_cache(self):
-        self.__connections._check_server("For accessing a value from the AI Hub Vault, you must provide a Server object.")
+        self.__connections._check_server(
+            "For accessing a value from the AI Hub Vault, you must provide a Server object.")
         if self.__connections.project_name is None:
             location = self.__location
         else:
             location = ProjectLocation(self.__connections.project_name, self.__location)
         self.__cached_vault_info = self.__connections.server._get_vault_info(location)
-    
+
     def __decrypt(self, value):
         if not value:
             return None
-        self.__connections._check_server("This connection has encrypted values. Decrypting them is only supported in case of AI Hub (Server) projects/repositories. For decrypting encrypted values, you must provide a Server object.")
+        self.__connections._check_server(
+            "This connection has encrypted values. Decrypting them is only supported in case of AI Hub (Server) projects/repositories. For decrypting encrypted values, you must provide a Server object.")
         decoded = base64.b64decode(value)
         primitive, output_prefix_type = self.__connections._get_project_primitive()
         if output_prefix_type == "RAW":
@@ -308,7 +322,9 @@ class Connection():
             try:
                 return macros(self.__name, key)
             except Exception as e:
-                raise ValueError("Cannot get macro key %s for connection %s. Reason: %s" % (key, self.__name, str(e)), e)
+                raise ValueError(
+                    "Cannot get macro key %s for connection %s. Reason: %s" %
+                    (key, self.__name, str(e)), e)
         else:
             try:
                 return macros[key]
@@ -326,4 +342,3 @@ class Connection():
 
     def __repr__(self):
         return repr("Connection(%s)" % self.name)
-

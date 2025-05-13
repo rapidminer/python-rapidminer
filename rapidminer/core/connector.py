@@ -1,7 +1,7 @@
 #
 # This file is part of the RapidMiner Python package.
 #
-# Copyright (C) 2018-2024 RapidMiner GmbH
+# Copyright (C) 2018-2025 RapidMiner GmbH
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the
 # GNU Affero General Public License as published by the Free Software Foundation, either version 3
@@ -22,6 +22,7 @@ import datetime
 import pandas as pd
 from collections import OrderedDict
 from .serdeutils import set_metadata_without_warning
+
 
 class Connector(object):
     """
@@ -45,11 +46,11 @@ class Connector(object):
             Connector.__id_counter__ = Connector.__id_counter__ + 1
         finally:
             Connector.__lock__.release()
-        if logger != None:
+        if logger is not None:
             self.logger = logger
         else:
-            formatter=logging.Formatter("%(asctime)s [%(levelname)s -- %(source)s]: %(message)s")
-            syslog=logging.StreamHandler(sys.stdout)
+            formatter = logging.Formatter("%(asctime)s [%(levelname)s -- %(source)s]: %(message)s")
+            syslog = logging.StreamHandler(sys.stdout)
             syslog.setFormatter(formatter)
             self.logger = logging.getLogger(self.__class__.__name__ + "@" + str(self.__id__))
             self.logger.setLevel(loglevel)
@@ -87,7 +88,6 @@ class Connector(object):
         """
         raise NotImplementedError("Method not implemented in base class.")
 
-
     def run_process(self, path, inputs=[], macros={}):
         """
         Runs a RapidMiner process and returns the result(s).
@@ -112,7 +112,7 @@ class Connector(object):
         try:
             str(value)
             return True
-        except:
+        except BaseException:
             return False
 
     def _rename_invalid_columns(self, columns):
@@ -125,7 +125,8 @@ class Connector(object):
         :return:
         """
         if any(self._can_convert_to_str(value) and ((not str(value)) or str(value).isdigit()) for value in columns):
-            return ['att'+str(value) if (self._can_convert_to_str(value) and ((not str(value)) or str(value).isdigit())) else str(value) for value in columns]
+            return ['att' + str(value) if (self._can_convert_to_str(value) and ((not str(value))
+                                                                                or str(value).isdigit())) else str(value) for value in columns]
         else:
             return columns
 
