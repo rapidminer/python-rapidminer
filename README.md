@@ -1,6 +1,6 @@
 # RapidMiner Python package
 
-This Python package allows you to interact with Altair AI Studio and Altair AI Hub. You can collaborate using the Altair AI repository and leverage the scalable Altair AI Hub infrastructure to run processes. This document shows examples on how to use the package. Additional notebook files provide more advanced examples. There is an API document for each of the classes: [Project](docs/api/Project.md), [Studio](docs/api/Studio.md), [Server](docs/api/Server.md), [Connections](docs/api/Connections.md), [Scoring](docs/api/Scoring.md). You can find the [changelog for the package here](CHANGES.md).
+This Python package allows you to interact with Altair AI Studio and Altair AI Hub. You can collaborate using the Altair AI repository and leverage the scalable Altair AI Hub infrastructure to run processes. This document shows examples on how to use the package. Additional notebook files provide more advanced examples. There is an API document for each of the classes: [Project](https://github.com/rapidminer/python-rapidminer/blob/master/docs/api/Project.md), [Studio](https://github.com/rapidminer/python-rapidminer/blob/master/docs/api/Studio.md), [Server](https://github.com/rapidminer/python-rapidminer/blob/master/docs/api/Server.md), [Connections](https://github.com/rapidminer/python-rapidminer/blob/master/docs/api/Connections.md), [Scoring](https://github.com/rapidminer/python-rapidminer/blob/master/docs/api/Scoring.md). You can find the [changelog for the package here](https://github.com/rapidminer/python-rapidminer/blob/master/CHANGES.md).
 
 ## Table of contents
 
@@ -74,7 +74,7 @@ The library can be installed easily:
 
         $ git clone https://github.com/rapidminer/python-rapidminer.git
         $ cd python-rapidminer
-        $ python setup.py install
+        $ pip install .
 
 ## Project
 
@@ -113,7 +113,7 @@ project.write(df, "data/mydata_modified")
 
 After writing the data set to the disk, you can use git commit and push to publish your changes to the remote project.
 
-For more examples with projects, see the [Project examples notebook](examples/project_examples.ipynb).
+For more examples with projects, see the [Project examples notebook](https://github.com/rapidminer/python-rapidminer/blob/master/examples/project_examples.ipynb).
 
 ##### Running a process
 
@@ -151,7 +151,7 @@ Note when reading connections directly from an AI Hub project, encrypted values 
 
 ## Studio
 
-You need to have a locally installed Altair AI Studio instance to use this class. The only thing you need to provide is your installation path. Once that is specified, you can read from and write data or other objects to any configured repository. You can also run processes from files or from the repository. In this section, we show you some examples on how to read and write repository data and run processes. For more advanced scenarios see the included [IPython notebook](examples/studio_examples.ipynb) and the [documentation of the `Studio` class](docs/api/Studio.md).
+You need to have a locally installed Altair AI Studio instance to use this class. The only thing you need to provide is your installation path. Once that is specified, you can read from and write data or other objects to any configured repository. You can also run processes from files or from the repository. In this section, we show you some examples on how to read and write repository data and run processes. For more advanced scenarios see the included [IPython notebook](https://github.com/rapidminer/python-rapidminer/blob/master/examples/studio_examples.ipynb) and the [documentation of the `Studio` class](https://github.com/rapidminer/python-rapidminer/blob/master/docs/api/Studio.md).
 
 Note that each `Studio` method starts a Studio instance in the background and stops it when it is done. It is not recommended to run multiple instances in parallel, e.g. on different Notebook tabs. If you have several Altair AI extensions installed, all of them will be loaded each time, that may lead to longer runtime. Provide multiple parameters to a read or write call, if possible, to avoid the startup overhead. 
 
@@ -192,11 +192,11 @@ To run a process execute the following line:
 df = connector.run_process("//Samples/processes/02_Preprocessing/01_Normalization")
 ```
 
-You will get the results as `pandas` `DataFrames`. You can also define inputs, and many more. For more examples, see the [Studio examples notebook](examples/studio_examples.ipynb).
+You will get the results as `pandas` `DataFrames`. You can also define inputs, and many more. For more examples, see the [Studio examples notebook](https://github.com/rapidminer/python-rapidminer/blob/master/examples/studio_examples.ipynb).
 
 ## Server
 
-With `Server` class, you can directly connect to a local or remote Altair AI Hub instance without the need for any local Altair AI Studio installation. You can execute processes using the scalable Job Agent architecture. In this section, we show you some examples on how to run processes. For more advanced scenarios see the included [IPython notebook](examples/server_examples.ipynb) and the [documentation of the `Server` class](docs/api/Server.md).
+With `Server` class, you can directly connect to a local or remote Altair AI Hub instance without the need for any local Altair AI Studio installation. You can execute processes using the scalable Job Agent architecture. In this section, we show you some examples on how to run processes. For more advanced scenarios see the included [IPython notebook](https://github.com/rapidminer/python-rapidminer/blob/master/examples/server_examples.ipynb) and the [documentation of the `Server` class](https://github.com/rapidminer/python-rapidminer/blob/master/docs/api/Server.md).
 
 ### Usage of Server API
 
@@ -329,7 +329,7 @@ sc = rapidminer.Scoring("http://myserver.mycompany.com:8090", "score-sales/score
 prediction = sc.predict(df)
 ```
 
-where the scoring endpoint is at `"score-sales/score1"` that can be applied to the dataset `df`, and the resulting `prediction` is a `pandas` `DataFrame` object. You can find the `Scoring` class [documentation here](docs/api/Scoring.md). Note that the scoring endpoint should not have a leading `"/"`.
+where the scoring endpoint is at `"score-sales/score1"` that can be applied to the dataset `df`, and the resulting `prediction` is a `pandas` `DataFrame` object. You can find the `Scoring` class [documentation here](https://github.com/rapidminer/python-rapidminer/blob/master/docs/api/Scoring.md). Note that the scoring endpoint should not have a leading `"/"`.
 
 It can work without any authentication. However, there are two different options for authentication. It depends on the RTS server configuration, but the two different method is the basic authentication and the other one is the OAuth2 authentication with Keycloak.
 

@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=80.9.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rapidminer"
+dynamic = ["version"]
+readme = {file = "README.md", content-type = "text/markdown"}
+description = "Tools for running RapidMiner processes and managing RapidMiner repositories."
+authors = [
+    {name = "RapidMiner"}
+]
+license = "AGPL-3.0-or-later"
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["rapidminer", "data-science", "machine-learning", "analytics"]
+dependencies = [
+    "pandas>=2.2.0,<3.0.0",
+    "requests>=2.31.0,<3.0.0",
+    "numpy>=1.24.0,<3.0.0",
+    "zeep>=4.2.0,<5.0.0",
+    "h5py>=3.8.0,<4.0.0",
+    "cryptography>=41.0.0,<50.0.0",
+    "pyjwt>=2.8.0,<3.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/rapidminer/python-rapidminer"
+Repository = "https://github.com/rapidminer/python-rapidminer"
+Documentation = "https://github.com/rapidminer/python-rapidminer/tree/master/docs"
+"Bug Tracker" = "https://github.com/rapidminer/python-rapidminer/issues"
+
+[tool.setuptools]
+# package-dir removed for GitHub
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rapidminer*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "rapidminer.rapidminer.__version__"}

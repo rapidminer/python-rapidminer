@@ -15,32 +15,15 @@
 # If not, see https://www.gnu.org/licenses/.
 #
 
-# Import everything from the nested rapidminer package
-from .rapidminer import (
-    __version__,
-    Studio,
-    Server,
-    Project,
-    get_server,
-    Scoring,
-    File,
-    RepositoryLocation,
-    ProjectLocation,
-    Connections,
-    WebApi
-)
+__version__ = "2026.0.0"
 
-# Make everything available at the top level
-__all__ = [
-    '__version__',
-    'Studio',
-    'Server', 
-    'Project',
-    'get_server',
-    'Scoring',
-    'File',
-    'RepositoryLocation',
-    'ProjectLocation',
-    'Connections',
-    'WebApi'
-]
+from .core.studio import Studio
+from .core.server import Server
+from .core.project import Project
+from .core.server import get_server
+from .core.scoring import Scoring
+from .core.resources import File
+from .core.resources import RepositoryLocation
+from .core.resources import ProjectLocation
+from .core.connections import Connections
+from .core.web_api import WebApi
