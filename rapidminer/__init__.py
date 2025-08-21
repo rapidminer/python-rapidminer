@@ -30,6 +30,8 @@ from .rapidminer import (
     WebApi
 )
 
+from .rapidminer import core
+
 # Make everything available at the top level
 __all__ = [
     '__version__',
@@ -42,5 +44,6 @@ __all__ = [
     'RepositoryLocation',
     'ProjectLocation',
     'Connections',
-    'WebApi'
+    'WebApi',
+    'core'
 ]

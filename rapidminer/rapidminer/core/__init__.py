@@ -14,3 +14,23 @@
 # You should have received a copy of the GNU Affero General Public License along with this program.
 # If not, see https://www.gnu.org/licenses/.
 #
+# Import all modules so they're accessible as rapidminer.core.modulename
+from . import serdeutils
+from . import utilities
+from . import config
+from . import resources
+from . import connections
+from . import oauthenticator
+from . import studio
+from . import server
+from . import project
+from . import scoring
+from . import web_api
+
+from .studio import Studio
+from .server import Server, get_server
+from .project import Project
+from .scoring import Scoring
+from .resources import File, RepositoryLocation, ProjectLocation
+from .connections import Connections
+from .web_api import WebApi
