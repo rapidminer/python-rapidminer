@@ -15,6 +15,16 @@
 # If not, see https://www.gnu.org/licenses/.
 #
 
+import warnings
+
+warnings.warn(
+    "The `rapidminer` package is deprecated and is superseded by `rapidminer-ai-core`, "
+    "a new package that will carry forward the existing functionality. "
+    "Please update your dependencies and imports, as support for `rapidminer` "
+    "will be removed in a future release.",
+    FutureWarning,
+    stacklevel=2,
+)
 # Import everything from the nested rapidminer package
 from .rapidminer import (
     __version__,

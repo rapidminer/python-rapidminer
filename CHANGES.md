@@ -6,6 +6,10 @@ The first 3 numbers in the version always indicate the RapidMiner platform (Stud
 
 Because of multiple reasons (like managing and releasing point of view) from version 10.1.0 we go with the more standardised version numbering. 
 
+### Version 2026.0.2
+
+* Added deprecation warning for this last release of the package
+
 ### Version 2026.0.1
 
 * Fixed internal core package usability
