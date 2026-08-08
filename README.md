@@ -64,6 +64,20 @@ Connections class can be used to access connections defined in a project. This w
 
 ## Installation
 
+## Prerequisite: Install the Python Scripting Extension
+
+Before using the `python-rapidminer` package with RapidMiner Studio, you **must** install the Python Scripting extension (`rmx_python`) in RapidMiner Studio.
+
+**How to install:**
+1. Open RapidMiner Studio.
+2. Go to **Extensions > Marketplace (Updates and Extensions)**.
+3. Search for **Python Scripting** and install it.
+4. Restart RapidMiner Studio if prompted.
+
+For more details, see the [official RapidMiner documentation](https://docs.rapidminer.com/9.9/python/extension/install.html)[2].
+
+**Note:** Without this extension, Python integration with RapidMiner Studio will not work.
+
 The library can be installed easily:
 
 - install in one step:
